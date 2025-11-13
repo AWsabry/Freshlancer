@@ -193,6 +193,11 @@ const jobApplicationSchema = new mongoose.Schema({
     default: false,
   },
   readByClientAt: Date,
+  contactUnlockedByClient: {
+    type: Boolean,
+    default: false,
+  },
+  contactUnlockedAt: Date,
   createdAt: {
     type: Date,
     default: Date.now,
@@ -314,7 +319,7 @@ jobApplicationSchema.pre(/^find/, function (next) {
     },
   }).populate({
     path: 'student',
-    select: 'name email photo age nationality',
+    select: 'name email photo age nationality studentProfile',
   });
   next();
 });

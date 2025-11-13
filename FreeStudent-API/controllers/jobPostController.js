@@ -68,7 +68,12 @@ exports.getAllJobPosts = catchAsync(async (req, res, next) => {
 
   query = query.skip(skip).limit(limit);
 
-  // Execute query
+  // Execute query with populated client info
+  query = query.populate({
+    path: 'client',
+    select: 'name email photo clientProfile',
+  });
+
   const jobPosts = await query;
   const total = await JobPost.countDocuments(queryObject);
 
@@ -89,7 +94,10 @@ exports.getAllJobPosts = catchAsync(async (req, res, next) => {
 
 // Get a single job post
 exports.getJobPost = catchAsync(async (req, res, next) => {
-  const jobPost = await JobPost.findById(req.params.id);
+  const jobPost = await JobPost.findById(req.params.id).populate({
+    path: 'client',
+    select: 'name email photo clientProfile',
+  });
 
   if (!jobPost) {
     return next(new AppError('No job post found with that ID', 404));

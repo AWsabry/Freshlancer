@@ -135,15 +135,13 @@ exports.upgradeToPremium = catchAsync(async (req, res, next) => {
   });
 
   // Note: In production, integrate with payment gateway (Stripe/PayPal) here
-  // For now, we'll mark as completed for demonstration
-  if (req.body.skipPayment) {
-    transaction.status = 'completed';
-    transaction.completedAt = Date.now();
-    await transaction.save();
+  // For testing: Auto-complete payment (remove this in production)
+  transaction.status = 'completed';
+  transaction.completedAt = Date.now();
+  await transaction.save();
 
-    subscription.status = 'active';
-    await subscription.save();
-  }
+  subscription.status = 'active';
+  await subscription.save();
 
   // Create notification
   await Notification.create({

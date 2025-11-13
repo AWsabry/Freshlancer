@@ -1,5 +1,6 @@
 const JobApplication = require('../models/jobApplicationModel');
 const JobPost = require('../models/jobPostModel');
+const ClientPackage = require('../models/clientPackageModel');
 const AppError = require('../utils/AppError');
 const catchAsync = require('../utils/catchAsync');
 const sendEmail = require('../utils/email');
@@ -435,6 +436,86 @@ exports.getJobApplications = catchAsync(async (req, res, next) => {
     },
     data: {
       applications,
+    },
+  });
+});
+
+// Unlock student contact (only clients, costs 10 points)
+exports.unlockStudentContact = catchAsync(async (req, res, next) => {
+  if (req.user.role !== 'client') {
+    return next(new AppError('Only clients can unlock student contacts', 403));
+  }
+
+  const application = await JobApplication.findById(req.params.id);
+
+  if (!application) {
+    return next(new AppError('Application not found', 404));
+  }
+
+  // Check if client owns the job post
+  const jobPost = await JobPost.findById(application.jobPost);
+  if (!jobPost || jobPost.client._id.toString() !== req.user.id) {
+    return next(
+      new AppError('You can only unlock contacts for your own job posts', 403)
+    );
+  }
+
+  // Check if already unlocked
+  if (application.contactUnlockedByClient) {
+    return res.status(200).json({
+      status: 'success',
+      message: 'Contact already unlocked',
+      data: {
+        application,
+      },
+    });
+  }
+
+  // Get client's active package
+  const clientPackage = await ClientPackage.findOne({
+    client: req.user.id,
+    status: 'active',
+  }).sort('-purchaseDate');
+
+  if (!clientPackage) {
+    return next(
+      new AppError('No active package found. Please purchase a package.', 400)
+    );
+  }
+
+  // Check if enough points
+  const pointsCost = 10;
+  if (clientPackage.pointsRemaining < pointsCost) {
+    return next(
+      new AppError(
+        `Insufficient points. You need ${pointsCost} points to unlock this contact.`,
+        400
+      )
+    );
+  }
+
+  // Deduct points
+  clientPackage.pointsRemaining -= pointsCost;
+  clientPackage.pointsUsed += pointsCost;
+
+  // Check if package is exhausted
+  if (clientPackage.pointsRemaining === 0) {
+    clientPackage.status = 'exhausted';
+  }
+
+  await clientPackage.save();
+
+  // Mark application as unlocked
+  application.contactUnlockedByClient = true;
+  application.contactUnlockedAt = Date.now();
+  await application.save();
+
+  res.status(200).json({
+    status: 'success',
+    message: `Student contact unlocked successfully. ${pointsCost} points deducted.`,
+    data: {
+      application,
+      pointsRemaining: clientPackage.pointsRemaining,
     },
   });
 });

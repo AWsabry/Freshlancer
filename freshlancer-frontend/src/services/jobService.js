@@ -40,4 +40,9 @@ export const jobService = {
   inviteStudent: async (jobId, studentId) => {
     return api.post(`/jobs/${jobId}/invite`, { studentId });
   },
+
+  // Search jobs
+  searchJobs: async (query, params) => {
+    return api.get('/jobs/search', { params: { q: query, ...params } });
+  },
 };

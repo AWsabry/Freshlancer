@@ -3,12 +3,13 @@ import api from './api';
 export const applicationService = {
   // Apply to job
   applyToJob: async (applicationData) => {
-    return api.post('/applications', applicationData);
+    const { jobPost, ...data } = applicationData;
+    return api.post(`/applications/apply/${jobPost}`, data);
   },
 
   // Get my applications
   getMyApplications: async (params) => {
-    return api.get('/applications/me', { params });
+    return api.get('/applications', { params });
   },
 
   // Get single application
@@ -39,5 +40,10 @@ export const applicationService = {
   // Client: Shortlist application
   shortlistApplication: async (id) => {
     return api.patch(`/applications/${id}/shortlist`);
+  },
+
+  // Client: Unlock student contact (costs 10 points)
+  unlockContact: async (id) => {
+    return api.patch(`/applications/${id}/unlock-contact`);
   },
 };

@@ -3,6 +3,7 @@ import { Link, Outlet, useNavigate } from 'react-router-dom';
 import { useAuthStore } from '../stores/authStore';
 import { useQuery } from '@tanstack/react-query';
 import { notificationService } from '../services/notificationService';
+import { packageService } from '../services/packageService';
 import {
   Home,
   Briefcase,
@@ -31,6 +32,14 @@ const DashboardLayout = () => {
     queryKey: ['unreadNotifications'],
     queryFn: () => notificationService.getUnreadCount(),
     refetchInterval: 30000, // Refetch every 30 seconds
+  });
+
+  // Get points balance for clients
+  const { data: pointsData } = useQuery({
+    queryKey: ['pointsBalance'],
+    queryFn: () => packageService.getPointsBalance(),
+    enabled: user?.role === 'client',
+    refetchInterval: 60000, // Refetch every 60 seconds
   });
 
   const handleLogout = () => {
@@ -91,7 +100,7 @@ const DashboardLayout = () => {
   const navigationItems = getNavigationItems();
 
   return (
-    <div className="min-h-screen bg-gray-50">
+    <div className="flex min-h-screen bg-gray-50">
       {/* Mobile sidebar backdrop */}
       {sidebarOpen && (
         <div
@@ -102,7 +111,7 @@ const DashboardLayout = () => {
 
       {/* Sidebar */}
       <div
-        className={`fixed inset-y-0 left-0 z-50 w-64 bg-white shadow-lg transform transition-transform duration-300 ease-in-out lg:translate-x-0 lg:static lg:inset-0 ${
+        className={`fixed inset-y-0 left-0 z-50 w-64 bg-white shadow-lg transform transition-transform duration-300 ease-in-out lg:translate-x-0 lg:static lg:flex-shrink-0 ${
           sidebarOpen ? 'translate-x-0' : '-translate-x-full'
         }`}
       >
@@ -174,22 +183,37 @@ const DashboardLayout = () => {
       </div>
 
       {/* Main content */}
-      <div className="lg:ml-64">
+      <div className="flex flex-col flex-1 min-h-screen">
         {/* Top bar */}
-        <div className="sticky top-0 z-30 flex items-center h-16 px-4 bg-white border-b lg:px-8">
-          <button
-            onClick={() => setSidebarOpen(true)}
-            className="mr-4 text-gray-600 hover:text-gray-900 lg:hidden"
-          >
-            <Menu className="w-6 h-6" />
-          </button>
-          <h1 className="text-xl font-semibold text-gray-900">
-            Welcome back, {user?.name?.split(' ')[0]}!
-          </h1>
+        <div className="sticky top-0 z-30 flex items-center justify-between flex-shrink-0 h-16 px-4 bg-white border-b lg:px-8">
+          <div className="flex items-center">
+            <button
+              onClick={() => setSidebarOpen(true)}
+              className="mr-4 text-gray-600 hover:text-gray-900 lg:hidden"
+            >
+              <Menu className="w-6 h-6" />
+            </button>
+            <h1 className="text-xl font-semibold text-gray-900">
+              Welcome back, {user?.name?.split(' ')[0]}!
+            </h1>
+          </div>
+
+          {/* Points Display for Clients */}
+          {user?.role === 'client' && pointsData?.data?.pointsRemaining !== undefined && (
+            <div className="flex items-center gap-2 bg-primary-50 border border-primary-200 rounded-lg px-4 py-2">
+              <DollarSign className="w-5 h-5 text-primary-600" />
+              <div>
+                <p className="text-xs text-primary-600 font-medium">Points</p>
+                <p className="text-lg font-bold text-primary-700">
+                  {pointsData.data.pointsRemaining}
+                </p>
+              </div>
+            </div>
+          )}
         </div>
 
         {/* Page content */}
-        <main className="p-4 lg:p-8">
+        <main className="flex-1 p-4 lg:p-8">
           <Outlet />
         </main>
       </div>

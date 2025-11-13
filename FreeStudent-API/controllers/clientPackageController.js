@@ -113,16 +113,14 @@ exports.purchasePackage = catchAsync(async (req, res, next) => {
   });
 
   // Note: Integrate payment gateway here
-  // For demo, auto-complete if skipPayment is true
-  if (req.body.skipPayment) {
-    transaction.status = 'completed';
-    transaction.completedAt = Date.now();
-    await transaction.save();
+  // For testing: Auto-complete payment (remove this in production)
+  transaction.status = 'completed';
+  transaction.completedAt = Date.now();
+  await transaction.save();
 
-    clientPackage.paymentStatus = 'completed';
-    clientPackage.activationDate = Date.now();
-    await clientPackage.save();
-  }
+  clientPackage.paymentStatus = 'completed';
+  clientPackage.activationDate = Date.now();
+  await clientPackage.save();
 
   // Create notification
   await Notification.create({

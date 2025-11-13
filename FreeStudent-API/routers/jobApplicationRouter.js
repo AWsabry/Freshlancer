@@ -44,4 +44,11 @@ router.get(
   jobApplicationController.getJobApplications
 );
 
+// Unlock student contact (for clients, costs 10 points)
+router.patch(
+  '/:id/unlock-contact',
+  authController.restrictTo('client'),
+  jobApplicationController.unlockStudentContact
+);
+
 module.exports = router;
