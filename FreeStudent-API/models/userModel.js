@@ -392,6 +392,25 @@ const userSchema = new mongoose.Schema({
       type: Number,
       default: 0,
     },
+    // Direct points system (replaces package-based points)
+    pointsRemaining: {
+      type: Number,
+      default: 30, // Free tier gets 30 points
+    },
+    pointsUsed: {
+      type: Number,
+      default: 0,
+    },
+    pointsResetDate: {
+      type: Date,
+      default: function () {
+        const date = new Date();
+        date.setMonth(date.getMonth() + 1);
+        date.setDate(1);
+        date.setHours(0, 0, 0, 0);
+        return date;
+      },
+    },
   },
 
   // Platform metrics and activity

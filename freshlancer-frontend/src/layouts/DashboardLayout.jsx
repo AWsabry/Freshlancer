@@ -3,7 +3,7 @@ import { Link, Outlet, useNavigate } from 'react-router-dom';
 import { useAuthStore } from '../stores/authStore';
 import { useQuery } from '@tanstack/react-query';
 import { notificationService } from '../services/notificationService';
-import { packageService } from '../services/packageService';
+import { authService } from '../services/authService';
 import {
   Home,
   Briefcase,
@@ -34,10 +34,10 @@ const DashboardLayout = () => {
     refetchInterval: 30000, // Refetch every 30 seconds
   });
 
-  // Get points balance for clients
-  const { data: pointsData } = useQuery({
-    queryKey: ['pointsBalance'],
-    queryFn: () => packageService.getPointsBalance(),
+  // Get user data (including points) for clients
+  const { data: userData } = useQuery({
+    queryKey: ['currentUser'],
+    queryFn: () => authService.getMe(),
     enabled: user?.role === 'client',
     refetchInterval: 60000, // Refetch every 60 seconds
   });
@@ -199,13 +199,13 @@ const DashboardLayout = () => {
           </div>
 
           {/* Points Display for Clients */}
-          {user?.role === 'client' && pointsData?.data?.pointsRemaining !== undefined && (
+          {user?.role === 'client' && userData?.data?.user?.clientProfile?.pointsRemaining !== undefined && (
             <div className="flex items-center gap-2 bg-primary-50 border border-primary-200 rounded-lg px-4 py-2">
               <DollarSign className="w-5 h-5 text-primary-600" />
               <div>
                 <p className="text-xs text-primary-600 font-medium">Points</p>
                 <p className="text-lg font-bold text-primary-700">
-                  {pointsData.data.pointsRemaining}
+                  {userData.data.user.clientProfile.pointsRemaining}
                 </p>
               </div>
             </div>

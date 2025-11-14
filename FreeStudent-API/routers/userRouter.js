@@ -12,6 +12,7 @@ router.get('/verifyEmail/:token', authController.verifyEmail);
 router.post('/resendVerificationEmail', authController.resendVerificationEmail);
 
 router.use(authController.protect);
+router.get('/me', authController.getMe);
 router.patch('/updateMyPassword', authController.updatePassword);
 
 module.exports = router;

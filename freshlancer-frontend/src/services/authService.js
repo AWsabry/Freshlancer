@@ -27,10 +27,19 @@ export const authService = {
     localStorage.removeItem('user');
   },
 
-  // Get current user
+  // Get current user from localStorage
   getCurrentUser: () => {
     const user = localStorage.getItem('user');
     return user ? JSON.parse(user) : null;
+  },
+
+  // Get current user from backend (fresh data)
+  getMe: async () => {
+    const response = await api.get('/users/me');
+    if (response.data?.user) {
+      localStorage.setItem('user', JSON.stringify(response.data.user));
+    }
+    return response;
   },
 
   // Update profile
