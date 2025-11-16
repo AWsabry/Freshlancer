@@ -28,7 +28,11 @@ const JobDetails = () => {
   const queryClient = useQueryClient();
   const [showApplicationModal, setShowApplicationModal] = useState(false);
 
-  const { register, handleSubmit, formState: { errors }, reset } = useForm();
+  const { register, handleSubmit, formState: { errors }, reset } = useForm({
+    defaultValues: {
+      proposedBudgetCurrency: 'USD',
+    },
+  });
 
   // Fetch job details
   const { data: jobData, isLoading } = useQuery({
@@ -48,19 +52,15 @@ const JobDetails = () => {
     queryFn: () => subscriptionService.checkApplicationLimit(),
   });
 
-  // Fetch student's applications to check if already applied
-  const { data: applicationsData } = useQuery({
-    queryKey: ['myApplications'],
-    queryFn: () => applicationService.getMyApplications(),
+  // Check if student has already applied to this job (from database)
+  const { data: applicationStatusData } = useQuery({
+    queryKey: ['applicationStatus', id],
+    queryFn: () => applicationService.checkApplicationStatus(id),
+    enabled: !!id,
   });
 
-  const myApplications = applicationsData?.data?.data?.applications || [];
-  const hasAlreadyApplied = myApplications.some(
-    (app) => (app.jobPost?._id || app.jobPost) === id
-  );
-  const existingApplication = myApplications.find(
-    (app) => (app.jobPost?._id || app.jobPost) === id
-  );
+  const hasAlreadyApplied = applicationStatusData?.data?.data?.hasApplied || false;
+  const existingApplication = applicationStatusData?.data?.data?.application || null;
 
   // Apply mutation
   const applyMutation = useMutation({
@@ -69,6 +69,7 @@ const JobDetails = () => {
       queryClient.invalidateQueries(['subscription']);
       queryClient.invalidateQueries(['applicationLimit']);
       queryClient.invalidateQueries(['myApplications']);
+      queryClient.invalidateQueries(['applicationStatus', id]); // Invalidate application status
       queryClient.invalidateQueries(['jobs']); // Invalidate jobs list to update Available/Applied tabs
       setShowApplicationModal(false);
       reset();
@@ -86,7 +87,7 @@ const JobDetails = () => {
       proposalType: data.proposalType,
       proposedBudget: {
         amount: parseFloat(data.proposedBudget),
-        currency: 'USD',
+        currency: data.proposedBudgetCurrency || 'USD',
       },
       estimatedDuration: data.estimatedDuration,
       approachSelections: {
@@ -109,6 +110,7 @@ const JobDetails = () => {
   const job = jobData?.data?.jobPost;
   const canApply = limitData?.data?.canApply;
   const subscription = subscriptionData?.data?.subscription;
+  const isPremium = subscription?.plan === 'premium';
 
   if (!job) {
     return (
@@ -138,10 +140,10 @@ const JobDetails = () => {
           <div className="flex-1">
             <h1 className="text-3xl font-bold text-gray-900 mb-3">{job.title}</h1>
             <div className="flex flex-wrap items-center gap-4 text-gray-600">
-              <span className="flex items-center gap-1">
+              {isPremium && (<span className="flex items-center gap-1">
                 <Briefcase className="w-5 h-5" />
                 {job.client?.clientProfile?.companyName || job.client?.name}
-              </span>
+              </span>)}
               {job.location && (
                 <span className="flex items-center gap-1">
                   <MapPin className="w-5 h-5" />
@@ -165,10 +167,22 @@ const JobDetails = () => {
           {job.budget && (
             <div>
               <p className="text-sm text-gray-600 mb-1">Budget</p>
-              <div className="flex items-center gap-1 text-lg font-semibold text-green-600">
-                <DollarSign className="w-5 h-5" />
-                ${job.budget.min} - ${job.budget.max}
-              </div>
+              {isPremium ? (
+                <div className="flex items-center gap-1 text-lg font-semibold text-green-600">
+                  <DollarSign className="w-5 h-5" />
+                  {job.budget.currency} ${job.budget.min} - ${job.budget.max}
+                </div>
+              ) : (
+                <Button
+                  variant="primary"
+                  size="sm"
+                  onClick={() => navigate('/student/subscription')}
+                  className="flex items-center gap-1"
+                >
+                  <DollarSign className="w-4 h-4" />
+                  Subscribe to see budget
+                </Button>
+              )}
             </div>
           )}
           {job.duration && (
@@ -245,15 +259,17 @@ const JobDetails = () => {
                   className="mb-4"
                 />
               )}
-              <Button
-                variant="primary"
-                size="lg"
-                className="w-full"
-                onClick={() => setShowApplicationModal(true)}
-                disabled={!canApply}
-              >
-                Apply for this Job
-              </Button>
+              {!hasAlreadyApplied && (
+                <Button
+                  variant="primary"
+                  size="lg"
+                  className="w-full"
+                  onClick={() => setShowApplicationModal(true)}
+                  disabled={!canApply}
+                >
+                  Apply for this Job
+                </Button>
+              )}
               {subscription?.plan !== 'premium' && (
                 <p className="text-sm text-gray-600 text-center mt-2">
                   {limitData?.data?.currentUsage || 0} / {limitData?.data?.limit || 10} applications used this month
@@ -289,17 +305,63 @@ const JobDetails = () => {
             {...register('proposalType', { required: 'Proposal type is required' })}
           />
 
-          <Input
-            label="Proposed Budget (USD)"
-            type="number"
-            min="1"
-            step="0.01"
-            error={errors.proposedBudget?.message}
-            {...register('proposedBudget', {
-              required: 'Proposed budget is required',
-              min: { value: 1, message: 'Budget must be at least $1' },
-            })}
-          />
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            <Input
+              label="Proposed Budget Amount"
+              type="number"
+              min="1"
+              step="0.01"
+              error={errors.proposedBudget?.message}
+              {...register('proposedBudget', {
+                required: 'Proposed budget is required',
+                min: { value: 1, message: 'Budget must be at least $1' },
+              })}
+            />
+
+            <Select
+              label="Currency"
+              options={[
+                { value: 'USD', label: 'USD ($) - US Dollar' },
+                { value: 'EUR', label: 'EUR (€) - Euro' },
+                { value: 'EGP', label: 'EGP (£) - Egyptian Pound' },
+                { value: 'GBP', label: 'GBP (£) - British Pound' },
+                { value: 'AED', label: 'AED (د.إ) - UAE Dirham' },
+                { value: 'SAR', label: 'SAR (﷼) - Saudi Riyal' },
+                { value: 'QAR', label: 'QAR (﷼) - Qatari Riyal' },
+                { value: 'KWD', label: 'KWD (د.ك) - Kuwaiti Dinar' },
+                { value: 'BHD', label: 'BHD (.د.ب) - Bahraini Dinar' },
+                { value: 'OMR', label: 'OMR (﷼) - Omani Rial' },
+                { value: 'JOD', label: 'JOD (د.ا) - Jordanian Dinar' },
+                { value: 'LBP', label: 'LBP (ل.ل) - Lebanese Pound' },
+                { value: 'ILS', label: 'ILS (₪) - Israeli Shekel' },
+                { value: 'TRY', label: 'TRY (₺) - Turkish Lira' },
+                { value: 'ZAR', label: 'ZAR (R) - South African Rand' },
+                { value: 'MAD', label: 'MAD (د.م.) - Moroccan Dirham' },
+                { value: 'TND', label: 'TND (د.ت) - Tunisian Dinar' },
+                { value: 'DZD', label: 'DZD (د.ج) - Algerian Dinar' },
+                { value: 'NGN', label: 'NGN (₦) - Nigerian Naira' },
+                { value: 'KES', label: 'KES (KSh) - Kenyan Shilling' },
+                { value: 'GHS', label: 'GHS (₵) - Ghanaian Cedi' },
+                { value: 'UGX', label: 'UGX (USh) - Ugandan Shilling' },
+                { value: 'TZS', label: 'TZS (TSh) - Tanzanian Shilling' },
+                { value: 'ETB', label: 'ETB (Br) - Ethiopian Birr' },
+                { value: 'CHF', label: 'CHF (Fr) - Swiss Franc' },
+                { value: 'SEK', label: 'SEK (kr) - Swedish Krona' },
+                { value: 'NOK', label: 'NOK (kr) - Norwegian Krone' },
+                { value: 'DKK', label: 'DKK (kr) - Danish Krone' },
+                { value: 'PLN', label: 'PLN (zł) - Polish Zloty' },
+                { value: 'CZK', label: 'CZK (Kč) - Czech Koruna' },
+                { value: 'HUF', label: 'HUF (Ft) - Hungarian Forint' },
+                { value: 'RON', label: 'RON (lei) - Romanian Leu' },
+                { value: 'BGN', label: 'BGN (лв) - Bulgarian Lev' },
+                { value: 'HRK', label: 'HRK (kn) - Croatian Kuna' },
+                { value: 'RUB', label: 'RUB (₽) - Russian Ruble' },
+                { value: 'UAH', label: 'UAH (₴) - Ukrainian Hryvnia' },
+              ]}
+              error={errors.proposedBudgetCurrency?.message}
+              {...register('proposedBudgetCurrency', { required: 'Currency is required' })}
+            />
+          </div>
 
           <Select
             label="Estimated Duration"

@@ -12,6 +12,11 @@ export const applicationService = {
     return api.get('/applications', { params });
   },
 
+  // Check if already applied to a job
+  checkApplicationStatus: async (jobId) => {
+    return api.get(`/applications/check/${jobId}`);
+  },
+
   // Get single application
   getApplication: async (id) => {
     return api.get(`/applications/${id}`);

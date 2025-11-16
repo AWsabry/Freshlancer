@@ -502,6 +502,10 @@ const userSchema = new mongoose.Schema({
   passwordResetExpires: Date,
   emailVerificationToken: String,
   emailVerificationExpires: Date,
+  joinedAt: {
+    type: Date,
+    default: Date.now,
+  },
 });
 
 //check if password is modified and hash it

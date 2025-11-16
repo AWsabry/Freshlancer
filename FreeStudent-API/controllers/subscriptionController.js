@@ -4,6 +4,11 @@ const Transaction = require('../models/transactionModel');
 const Notification = require('../models/notificationModel');
 const catchAsync = require('../utils/catchAsync');
 const AppError = require('../utils/AppError');
+const {
+  getPremiumPrices,
+  getPriceForCurrency,
+  getCurrencyByCountry,
+} = require('../utils/currencyRates');
 
 // Get my subscription
 exports.getMySubscription = catchAsync(async (req, res, next) => {
@@ -331,5 +336,94 @@ exports.getSubscriptionStats = catchAsync(async (req, res, next) => {
       total: totalSubscriptions,
       stats,
     },
+  });
+});
+
+// Get subscription pricing based on user's location/currency
+exports.getSubscriptionPricing = catchAsync(async (req, res, next) => {
+  // Get user's currency from their location or use provided currency
+  const requestedCurrency = req.query.currency;
+  let userCurrency = 'USD'; // Default
+
+  // If user is logged in (optional), try to get currency from their profile
+  if (req.user && req.user.id) {
+    try {
+      const user = await User.findById(req.user.id);
+      if (user && user.location && user.location.country) {
+        userCurrency = getCurrencyByCountry(user.location.country);
+      }
+    } catch (error) {
+      // If user lookup fails, continue with default currency
+      console.log('User lookup failed, using default currency');
+    }
+  }
+
+  // Override with requested currency if provided
+  const currency = requestedCurrency || userCurrency;
+
+  // Get prices for all billing cycles
+  const pricing = {
+    currency,
+    plans: {
+      free: {
+        name: 'Free',
+        price: {
+          amount: 0,
+          currency,
+        },
+        features: [
+          '10 job applications per month',
+          'Basic profile',
+          'Standard support',
+        ],
+      },
+      premium: {
+        name: 'Premium',
+        billingCycles: {
+          monthly: {
+            price: {
+              amount: getPriceForCurrency(currency, 'monthly'),
+              currency,
+            },
+            savings: null,
+          },
+          quarterly: {
+            price: {
+              amount: getPriceForCurrency(currency, 'quarterly'),
+              currency,
+            },
+            savings: Math.round(
+              (getPriceForCurrency(currency, 'monthly') * 3 -
+                getPriceForCurrency(currency, 'quarterly')) *
+                100
+            ) / 100,
+          },
+          yearly: {
+            price: {
+              amount: getPriceForCurrency(currency, 'yearly'),
+              currency,
+            },
+            savings: Math.round(
+              (getPriceForCurrency(currency, 'monthly') * 12 -
+                getPriceForCurrency(currency, 'yearly')) *
+                100
+            ) / 100,
+          },
+        },
+        features: [
+          'Unlimited job applications',
+          'Profile boost (appear higher in search)',
+          'Advanced analytics dashboard',
+          'Priority customer support',
+          'Verified badge',
+          'See job budgets',
+        ],
+      },
+    },
+  };
+
+  res.status(200).json({
+    status: 'success',
+    data: pricing,
   });
 });

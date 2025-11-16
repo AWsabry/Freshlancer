@@ -20,6 +20,7 @@ const JobForm = () => {
   const { register, handleSubmit, formState: { errors }, setValue, watch } = useForm({
     defaultValues: {
       skillsRequired: [],
+      budgetCurrency: 'USD',
     },
   });
 
@@ -38,6 +39,7 @@ const JobForm = () => {
         if (key === 'budget') {
           setValue('budgetMin', job.budget?.min);
           setValue('budgetMax', job.budget?.max);
+          setValue('budgetCurrency', job.budget?.currency || 'USD');
         } else if (key === 'deadline') {
           // Convert deadline to YYYY-MM-DD format for date input
           const date = new Date(job.deadline);
@@ -85,7 +87,7 @@ const JobForm = () => {
       budget: {
         min: parseFloat(data.budgetMin),
         max: parseFloat(data.budgetMax),
-        currency: 'USD',
+        currency: data.budgetCurrency || 'USD',
       },
       projectDuration: data.projectDuration,
       deadline: data.deadline,
@@ -208,21 +210,21 @@ const JobForm = () => {
             </div>
           </div>
 
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
             <Input
-              label="Minimum Budget (USD)"
+              label="Minimum Budget"
               type="number"
               min="0"
               step="0.01"
               error={errors.budgetMin?.message}
               {...register('budgetMin', {
                 required: 'Min budget is required',
-                min: { value: 0, message: 'Budget must be positive' },
+                min: { value: 1, message: 'Budget must be at least 1' },
               })}
             />
 
             <Input
-              label="Maximum Budget (USD)"
+              label="Maximum Budget"
               type="number"
               min="0"
               step="0.01"
@@ -233,6 +235,50 @@ const JobForm = () => {
                   parseFloat(value) >= parseFloat(watch('budgetMin')) ||
                   'Max budget must be greater than min',
               })}
+            />
+
+            <Select
+              label="Currency"
+              options={[
+                { value: 'USD', label: 'USD ($) - US Dollar' },
+                { value: 'EUR', label: 'EUR (€) - Euro' },
+                { value: 'EGP', label: 'EGP (£) - Egyptian Pound' },
+                { value: 'GBP', label: 'GBP (£) - British Pound' },
+                { value: 'AED', label: 'AED (د.إ) - UAE Dirham' },
+                { value: 'SAR', label: 'SAR (﷼) - Saudi Riyal' },
+                { value: 'QAR', label: 'QAR (﷼) - Qatari Riyal' },
+                { value: 'KWD', label: 'KWD (د.ك) - Kuwaiti Dinar' },
+                { value: 'BHD', label: 'BHD (.د.ب) - Bahraini Dinar' },
+                { value: 'OMR', label: 'OMR (﷼) - Omani Rial' },
+                { value: 'JOD', label: 'JOD (د.ا) - Jordanian Dinar' },
+                { value: 'LBP', label: 'LBP (ل.ل) - Lebanese Pound' },
+                { value: 'ILS', label: 'ILS (₪) - Israeli Shekel' },
+                { value: 'TRY', label: 'TRY (₺) - Turkish Lira' },
+                { value: 'ZAR', label: 'ZAR (R) - South African Rand' },
+                { value: 'MAD', label: 'MAD (د.م.) - Moroccan Dirham' },
+                { value: 'TND', label: 'TND (د.ت) - Tunisian Dinar' },
+                { value: 'DZD', label: 'DZD (د.ج) - Algerian Dinar' },
+                { value: 'NGN', label: 'NGN (₦) - Nigerian Naira' },
+                { value: 'KES', label: 'KES (KSh) - Kenyan Shilling' },
+                { value: 'GHS', label: 'GHS (₵) - Ghanaian Cedi' },
+                { value: 'UGX', label: 'UGX (USh) - Ugandan Shilling' },
+                { value: 'TZS', label: 'TZS (TSh) - Tanzanian Shilling' },
+                { value: 'ETB', label: 'ETB (Br) - Ethiopian Birr' },
+                { value: 'CHF', label: 'CHF (Fr) - Swiss Franc' },
+                { value: 'SEK', label: 'SEK (kr) - Swedish Krona' },
+                { value: 'NOK', label: 'NOK (kr) - Norwegian Krone' },
+                { value: 'DKK', label: 'DKK (kr) - Danish Krone' },
+                { value: 'PLN', label: 'PLN (zł) - Polish Zloty' },
+                { value: 'CZK', label: 'CZK (Kč) - Czech Koruna' },
+                { value: 'HUF', label: 'HUF (Ft) - Hungarian Forint' },
+                { value: 'RON', label: 'RON (lei) - Romanian Leu' },
+                { value: 'BGN', label: 'BGN (лв) - Bulgarian Lev' },
+                { value: 'HRK', label: 'HRK (kn) - Croatian Kuna' },
+                { value: 'RUB', label: 'RUB (₽) - Russian Ruble' },
+                { value: 'UAH', label: 'UAH (₴) - Ukrainian Hryvnia' },
+              ]}
+              error={errors.budgetCurrency?.message}
+              {...register('budgetCurrency', { required: 'Currency is required' })}
             />
           </div>
 

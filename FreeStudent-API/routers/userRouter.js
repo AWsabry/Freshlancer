@@ -2,7 +2,7 @@ const express = require('express');
 
 const router = express.Router();
 const authController = require('../controllers/authController');
-const upload = require('../middleware/upload');
+const { uploadResume } = require('../middleware/upload');
 
 router.post('/signup', authController.signup);
 router.post('/login', authController.login);
@@ -18,7 +18,7 @@ router.patch('/updateMe', authController.updateMe);
 router.patch('/updateMyPassword', authController.updatePassword);
 
 // Resume upload/delete routes
-router.post('/uploadResume', upload.single('resume'), authController.uploadResume);
+router.post('/uploadResume', uploadResume.single('resume'), authController.uploadResume);
 router.delete('/deleteResume', authController.deleteResume);
 
 module.exports = router;

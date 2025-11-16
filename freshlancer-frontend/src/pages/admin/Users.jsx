@@ -2,6 +2,7 @@ import React, { useState } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { useSearchParams } from 'react-router-dom';
 import { adminService } from '../../services/adminService';
+import { verificationService } from '../../services/verificationService';
 import Card from '../../components/common/Card';
 import Button from '../../components/common/Button';
 import Loading from '../../components/common/Loading';
@@ -18,6 +19,9 @@ import {
   Eye,
   Mail,
   Calendar,
+  FileText,
+  Download,
+  ExternalLink,
 } from 'lucide-react';
 
 const Users = () => {
@@ -132,6 +136,13 @@ const Users = () => {
     setSelectedUser(user);
     setShowViewModal(true);
   };
+
+  // Fetch verifications for selected student
+  const { data: verificationsData } = useQuery({
+    queryKey: ['userVerifications', selectedUser?._id],
+    queryFn: () => verificationService.getAllVerifications({ student: selectedUser._id }),
+    enabled: !!selectedUser && selectedUser.role === 'student',
+  });
 
   const handleVerify = () => {
     if (selectedUser) {
@@ -478,9 +489,10 @@ const Users = () => {
           setSelectedUser(null);
         }}
         title="User Details"
+        size="xl"
       >
         {selectedUser && (
-          <div className="space-y-6">
+          <div className="space-y-6 max-h-[70vh] overflow-y-auto">
             {/* User Header */}
             <div className="flex items-center gap-4 pb-4 border-b">
               <img
@@ -521,6 +533,14 @@ const Users = () => {
             {/* User Information */}
             <div className="grid grid-cols-2 gap-4">
               <div>
+                <label className="text-sm font-medium text-gray-500">Email</label>
+                <p className="text-gray-900">{selectedUser.email}</p>
+              </div>
+              <div>
+                <label className="text-sm font-medium text-gray-500">Phone</label>
+                <p className="text-gray-900">{selectedUser.phone || 'N/A'}</p>
+              </div>
+              <div>
                 <label className="text-sm font-medium text-gray-500">Age</label>
                 <p className="text-gray-900">{selectedUser.age || 'N/A'}</p>
               </div>
@@ -533,37 +553,55 @@ const Users = () => {
                 <p className="text-gray-900">{selectedUser.nationality || 'N/A'}</p>
               </div>
               <div>
+                <label className="text-sm font-medium text-gray-500">Location</label>
+                <p className="text-gray-900">{selectedUser.location || 'N/A'}</p>
+              </div>
+              <div>
                 <label className="text-sm font-medium text-gray-500">Joined Date</label>
                 <p className="text-gray-900">
                   {selectedUser.createdAt ? new Date(selectedUser.createdAt).toLocaleDateString() : 'N/A'}
                 </p>
               </div>
+              <div>
+                <label className="text-sm font-medium text-gray-500">Last Updated</label>
+                <p className="text-gray-900">
+                  {selectedUser.updatedAt ? new Date(selectedUser.updatedAt).toLocaleDateString() : 'N/A'}
+                </p>
+              </div>
             </div>
 
+            {/* Bio */}
+            {selectedUser.bio && (
+              <div className="border-t pt-4">
+                <label className="text-sm font-medium text-gray-500">Bio</label>
+                <p className="text-gray-900 mt-1">{selectedUser.bio}</p>
+              </div>
+            )}
+
             {/* Student-specific information */}
-            {selectedUser.role === 'student' && selectedUser.studentProfile && (
+            {selectedUser?.role === 'student' && selectedUser?.studentProfile && (
               <div className="border-t pt-4">
                 <h4 className="font-semibold text-gray-900 mb-3">Student Profile</h4>
                 <div className="space-y-3">
                   <div>
                     <label className="text-sm font-medium text-gray-500">Experience Level</label>
                     <p className="text-gray-900">
-                      {selectedUser.studentProfile.experienceLevel || 'N/A'}
+                      {selectedUser?.studentProfile?.experienceLevel || 'N/A'}
                     </p>
                   </div>
                   <div>
                     <label className="text-sm font-medium text-gray-500">Availability</label>
                     <p className="text-gray-900">
-                      {selectedUser.studentProfile.availability || 'N/A'}
+                      {selectedUser?.studentProfile?.availability || 'N/A'}
                     </p>
                   </div>
                   <div>
                     <label className="text-sm font-medium text-gray-500">Skills</label>
                     <div className="flex flex-wrap gap-2 mt-1">
-                      {selectedUser.studentProfile.skills?.length > 0 ? (
+                      {selectedUser?.studentProfile?.skills?.length > 0 ? (
                         selectedUser.studentProfile.skills.map((skill, index) => (
                           <Badge key={index} variant="secondary">
-                            {skill.name}
+                            {skill?.name}
                           </Badge>
                         ))
                       ) : (
@@ -572,38 +610,193 @@ const Users = () => {
                     </div>
                   </div>
                   <div>
+                    <label className="text-sm font-medium text-gray-500">Languages</label>
+                    <div className="flex flex-wrap gap-2 mt-1">
+                      {selectedUser?.studentProfile?.languages?.length > 0 ? (
+                        selectedUser.studentProfile.languages.map((lang, index) => (
+                          <Badge key={index} variant="info">
+                            {lang?.language} ({lang?.proficiency})
+                          </Badge>
+                        ))
+                      ) : (
+                        <p className="text-gray-500 text-sm">No languages added</p>
+                      )}
+                    </div>
+                  </div>
+                  {selectedUser?.studentProfile?.education?.length > 0 && (
+                    <div>
+                      <label className="text-sm font-medium text-gray-500">Education</label>
+                      <div className="space-y-2 mt-1">
+                        {selectedUser.studentProfile.education.map((edu, index) => (
+                          <div key={index} className="bg-gray-50 p-2 rounded">
+                            <p className="font-medium text-gray-900">{edu?.degree} in {edu?.fieldOfStudy}</p>
+                            <p className="text-sm text-gray-600">{edu?.institution}</p>
+                            <p className="text-xs text-gray-500">
+                              {edu?.startYear} - {edu?.endYear || 'Present'}
+                            </p>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+                  {selectedUser?.studentProfile?.portfolio && (
+                    <div>
+                      <label className="text-sm font-medium text-gray-500">Portfolio</label>
+                      <a
+                        href={selectedUser.studentProfile.portfolio}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="text-primary-600 hover:text-primary-700 text-sm flex items-center gap-1 mt-1"
+                      >
+                        {selectedUser.studentProfile.portfolio}
+                        <ExternalLink className="w-3 h-3" />
+                      </a>
+                    </div>
+                  )}
+                  <div>
                     <label className="text-sm font-medium text-gray-500">Verification Status</label>
                     <p className="text-gray-900">
-                      {selectedUser.studentProfile.verificationStatus || 'unverified'}
+                      {selectedUser?.studentProfile?.verificationStatus || 'unverified'}
                     </p>
                   </div>
+                  {selectedUser?.studentProfile?.cvUrl && (
+                    <div>
+                      <label className="text-sm font-medium text-gray-500">CV/Resume</label>
+                      <div className="mt-1">
+                        <a
+                          href={`http://localhost:8080${selectedUser.studentProfile.cvUrl}`}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="inline-flex items-center gap-2 text-primary-600 hover:text-primary-700"
+                        >
+                          <FileText className="w-4 h-4" />
+                          View CV/Resume
+                          <ExternalLink className="w-3 h-3" />
+                        </a>
+                      </div>
+                    </div>
+                  )}
                 </div>
+
+                {/* Verification Documents */}
+                {verificationsData?.data?.data?.verifications && verificationsData.data.data.verifications.length > 0 && (
+                  <div className="mt-4 pt-4 border-t">
+                    <h5 className="font-semibold text-gray-900 mb-3">Verification Documents</h5>
+                    <div className="space-y-3">
+                      {verificationsData.data.data.verifications.map((verification) => (
+                        <div key={verification._id} className="bg-gray-50 rounded-lg p-4">
+                          <div className="flex items-start justify-between mb-2">
+                            <div className="flex-1">
+                              <div className="flex items-center gap-2 mb-1">
+                                <FileText className="w-4 h-4 text-gray-600" />
+                                <span className="font-medium text-gray-900 capitalize">
+                                  {verification.documentType?.replace('_', ' ')}
+                                </span>
+                                <Badge
+                                  variant={
+                                    verification.status === 'approved'
+                                      ? 'success'
+                                      : verification.status === 'rejected'
+                                      ? 'error'
+                                      : 'warning'
+                                  }
+                                >
+                                  {verification.status}
+                                </Badge>
+                              </div>
+                              <div className="text-sm text-gray-600 space-y-1">
+                                <p><strong>Institution:</strong> {verification.institutionName}</p>
+                                <p><strong>Student ID:</strong> {verification.studentIdNumber}</p>
+                                <p><strong>Enrollment Year:</strong> {verification.enrollmentYear}</p>
+                                <p><strong>Expected Graduation:</strong> {verification.expectedGraduationYear}</p>
+                                <p><strong>Submitted:</strong> {new Date(verification.createdAt).toLocaleString()}</p>
+                                {verification.reviewedAt && (
+                                  <p><strong>Reviewed:</strong> {new Date(verification.reviewedAt).toLocaleString()}</p>
+                                )}
+                                {verification.rejectionReason && (
+                                  <p className="text-red-600"><strong>Rejection Reason:</strong> {verification.rejectionReason}</p>
+                                )}
+                              </div>
+                            </div>
+                          </div>
+                          <div className="flex gap-2 mt-3">
+                            <a
+                              href={`http://localhost:8080${verification.documentUrl}`}
+                              target="_blank"
+                              rel="noopener noreferrer"
+                              className="inline-flex items-center gap-2 px-3 py-2 bg-primary-600 text-white rounded-lg hover:bg-primary-700 text-sm"
+                            >
+                              <Eye className="w-4 h-4" />
+                              View Document
+                            </a>
+                            <a
+                              href={`http://localhost:8080${verification.documentUrl}`}
+                              download={verification.fileName}
+                              className="inline-flex items-center gap-2 px-3 py-2 bg-gray-600 text-white rounded-lg hover:bg-gray-700 text-sm"
+                            >
+                              <Download className="w-4 h-4" />
+                              Download
+                            </a>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                )}
               </div>
             )}
 
             {/* Client-specific information */}
-            {selectedUser.role === 'client' && selectedUser.clientProfile && (
+            {selectedUser?.role === 'client' && selectedUser?.clientProfile && (
               <div className="border-t pt-4">
                 <h4 className="font-semibold text-gray-900 mb-3">Client Profile</h4>
                 <div className="space-y-3">
                   <div>
                     <label className="text-sm font-medium text-gray-500">Company Name</label>
                     <p className="text-gray-900">
-                      {selectedUser.clientProfile.companyName || 'N/A'}
+                      {selectedUser?.clientProfile?.companyName || 'N/A'}
                     </p>
                   </div>
                   <div>
                     <label className="text-sm font-medium text-gray-500">Industry</label>
                     <p className="text-gray-900">
-                      {selectedUser.clientProfile.industry || 'N/A'}
+                      {selectedUser?.clientProfile?.industry || 'N/A'}
                     </p>
                   </div>
                   <div>
-                    <label className="text-sm font-medium text-gray-500">Points Remaining</label>
-                    <p className="text-gray-900 font-semibold text-primary-600">
-                      {selectedUser.clientProfile.pointsRemaining || 0} points
+                    <label className="text-sm font-medium text-gray-500">Company Size</label>
+                    <p className="text-gray-900">
+                      {selectedUser?.clientProfile?.companySize || 'N/A'}
                     </p>
                   </div>
+                  {selectedUser?.clientProfile?.website && (
+                    <div>
+                      <label className="text-sm font-medium text-gray-500">Website</label>
+                      <a
+                        href={selectedUser.clientProfile.website}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="text-primary-600 hover:text-primary-700 text-sm flex items-center gap-1 mt-1"
+                      >
+                        {selectedUser.clientProfile.website}
+                        <ExternalLink className="w-3 h-3" />
+                      </a>
+                    </div>
+                  )}
+                  <div>
+                    <label className="text-sm font-medium text-gray-500">Points Remaining</label>
+                    <p className="text-gray-900 font-semibold text-primary-600">
+                      {selectedUser?.clientProfile?.pointsRemaining || 0} points
+                    </p>
+                  </div>
+                  {selectedUser?.clientProfile?.companyDescription && (
+                    <div>
+                      <label className="text-sm font-medium text-gray-500">Company Description</label>
+                      <p className="text-gray-900 mt-1">
+                        {selectedUser.clientProfile.companyDescription}
+                      </p>
+                    </div>
+                  )}
                 </div>
               </div>
             )}

@@ -78,13 +78,23 @@ const Jobs = () => {
   };
 
   const formatCurrency = (amount) => {
+    if (!amount) return 'N/A';
     return new Intl.NumberFormat('en-US', {
       style: 'currency',
       currency: 'USD',
     }).format(amount);
   };
 
+  const formatBudgetRange = (budget) => {
+    if (!budget || (!budget.min && !budget.max)) return 'N/A';
+    if (budget.min && budget.max) {
+      return `${formatCurrency(budget.min)} - ${formatCurrency(budget.max)}`;
+    }
+    return budget.min ? formatCurrency(budget.min) : formatCurrency(budget.max);
+  };
+
   const formatDate = (date) => {
+    if (!date) return 'N/A';
     return new Date(date).toLocaleDateString('en-US', {
       year: 'numeric',
       month: 'short',
@@ -200,13 +210,13 @@ const Jobs = () => {
                     </div>
                   </td>
                   <td className="px-6 py-4 whitespace-nowrap">
-                    <div className="text-sm text-gray-900 capitalize">
-                      {job.category?.replace('-', ' ')}
+                    <div className="text-sm text-gray-900">
+                      {job.category || 'N/A'}
                     </div>
                   </td>
                   <td className="px-6 py-4 whitespace-nowrap">
                     <div className="text-sm font-medium text-gray-900">
-                      {formatCurrency(job.budget)}
+                      {formatBudgetRange(job.budget)}
                     </div>
                   </td>
                   <td className="px-6 py-4 whitespace-nowrap">
@@ -223,7 +233,7 @@ const Jobs = () => {
                         job.status
                       )}`}
                     >
-                      {job.status.replace('_', ' ')}
+                      {job.status?.replace('_', ' ')}
                     </span>
                   </td>
                   <td className="px-6 py-4 whitespace-nowrap text-sm font-medium">
@@ -296,7 +306,7 @@ const Jobs = () => {
                       selectedJob.status
                     )}`}
                   >
-                    {selectedJob.status.replace('_', ' ')}
+                    {selectedJob.status?.replace('_', ' ')}
                   </span>
                 </div>
               </div>
@@ -334,7 +344,7 @@ const Jobs = () => {
                   </div>
                   <div>
                     <p className="text-sm text-gray-500">Budget</p>
-                    <p className="font-medium">{formatCurrency(selectedJob.budget)}</p>
+                    <p className="font-medium">{formatBudgetRange(selectedJob.budget)}</p>
                   </div>
                   <div>
                     <p className="text-sm text-gray-500">Deadline</p>

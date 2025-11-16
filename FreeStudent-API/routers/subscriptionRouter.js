@@ -4,7 +4,10 @@ const authController = require('../controllers/authController');
 
 const router = express.Router();
 
-// All routes require authentication
+// Public route - get pricing
+router.get('/pricing', subscriptionController.getSubscriptionPricing);
+
+// All routes below require authentication
 router.use(authController.protect);
 
 // Student routes (only students can manage subscriptions)

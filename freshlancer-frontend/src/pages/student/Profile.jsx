@@ -84,6 +84,10 @@ const Profile = () => {
         setValue('studentProfile.hourlyRate.min', studentProfile.hourlyRate?.min || '');
         setValue('studentProfile.hourlyRate.max', studentProfile.hourlyRate?.max || '');
         setValue('studentProfile.hourlyRate.currency', studentProfile.hourlyRate?.currency || 'USD');
+        setValue('studentProfile.socialLinks.github', studentProfile.socialLinks?.github || '');
+        setValue('studentProfile.socialLinks.linkedin', studentProfile.socialLinks?.linkedin || '');
+        setValue('studentProfile.socialLinks.website', studentProfile.socialLinks?.website || '');
+        setValue('studentProfile.socialLinks.behance', studentProfile.socialLinks?.behance || '');
       }
     }
     setShowEditModal(true);
@@ -300,14 +304,14 @@ const Profile = () => {
                 </div>
               )}
 
-              {user.createdAt && (
+              {(user.joinedAt || user.createdAt) && (
                 <div>
                   <label className="flex items-center gap-2 text-sm font-medium text-gray-500 mb-1">
                     <Calendar className="w-4 h-4" />
                     Member Since
                   </label>
                   <p className="text-gray-900">
-                    {new Date(user.createdAt).toLocaleDateString('en-US', {
+                    {new Date(user.joinedAt || user.createdAt).toLocaleDateString('en-US', {
                       year: 'numeric',
                       month: 'long',
                       day: 'numeric',
@@ -870,6 +874,40 @@ const Profile = () => {
                   placeholder="Maximum rate"
                 />
               </div>
+            </div>
+          </div>
+
+          {/* Social Links Section */}
+          <div>
+            <h3 className="text-lg font-semibold text-gray-900 mb-4">Social Links</h3>
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              <Input
+                label="GitHub"
+                {...register('studentProfile.socialLinks.github')}
+                error={errors.studentProfile?.socialLinks?.github?.message}
+                placeholder="https://github.com/username"
+              />
+
+              <Input
+                label="LinkedIn"
+                {...register('studentProfile.socialLinks.linkedin')}
+                error={errors.studentProfile?.socialLinks?.linkedin?.message}
+                placeholder="https://linkedin.com/in/username"
+              />
+
+              <Input
+                label="Personal Website"
+                {...register('studentProfile.socialLinks.website')}
+                error={errors.studentProfile?.socialLinks?.website?.message}
+                placeholder="https://yourwebsite.com"
+              />
+
+              <Input
+                label="Behance"
+                {...register('studentProfile.socialLinks.behance')}
+                error={errors.studentProfile?.socialLinks?.behance?.message}
+                placeholder="https://behance.net/username"
+              />
             </div>
           </div>
 

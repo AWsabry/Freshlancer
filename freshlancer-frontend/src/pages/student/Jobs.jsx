@@ -42,10 +42,16 @@ const Jobs = () => {
   });
 
   const myApplications = applicationsData?.data?.data?.applications || [];
+  // Only consider non-withdrawn applications as "applied"
+  const activeApplications = myApplications.filter(app => app.status !== 'withdrawn');
   const appliedJobIds = useMemo(
-    () => new Set(myApplications.map((app) => app.jobPost?._id || app.jobPost)),
-    [myApplications]
+    () => new Set(activeApplications.map((app) => app.jobPost?._id || app.jobPost)),
+    [activeApplications]
   );
+
+  // Check if student is on premium plan
+  const subscription = subscriptionData?.data?.subscription;
+  const isPremium = subscription?.plan === 'premium';
 
   // Fetch jobs with infinite scroll
   const {
@@ -79,13 +85,13 @@ const Jobs = () => {
   );
 
   const appliedJobs = useMemo(
-    () => myApplications.map((app) => ({
+    () => activeApplications.map((app) => ({
       ...app.jobPost,
       applicationStatus: app.status,
       applicationId: app._id,
       appliedAt: app.createdAt,
     })).filter((job) => job._id), // Filter out any null jobs
-    [myApplications]
+    [activeApplications]
   );
 
   const jobs = activeTab === 'available' ? availableJobs : appliedJobs;
@@ -123,7 +129,6 @@ const Jobs = () => {
     { value: 'Other', label: 'Other' },
   ];
 
-  const subscription = subscriptionData?.data?.subscription;
   const applicationsRemaining =
     subscription?.applicationLimitPerMonth - subscription?.applicationsUsedThisMonth;
 
@@ -265,7 +270,7 @@ const Jobs = () => {
                     <div className="flex items-center gap-4 text-sm text-gray-600">
                       <span className="flex items-center gap-1">
                         <Briefcase className="w-4 h-4" />
-                        {job.client?.clientProfile?.companyName || job.client?.name}
+                        {isPremium ? (job.client?.clientProfile?.companyName || job.client?.name) : 'Premium members only'}
                       </span>
                       {job.location && (
                         <span className="flex items-center gap-1">
@@ -335,14 +340,22 @@ const Jobs = () => {
                 {/* Footer */}
                 <div className="flex items-center justify-between pt-4 border-t">
                   <div className="flex items-center gap-4">
-                    {job.budget && (
-                      <div className="flex items-center gap-1 text-gray-700">
-                        <DollarSign className="w-5 h-5 text-green-600" />
-                        <span className="font-semibold">
-                          ${job.budget.min} - ${job.budget.max}
-                        </span>
-                      </div>
-                    )}
+              {isPremium ? (
+                <div className="flex items-center gap-1 text-lg font-semibold text-green-600">
+                  <DollarSign className="w-5 h-5" />
+                  {job.budget.currency} ${job.budget.min} - ${job.budget.max}
+                </div>
+              ) : (
+                <Button
+                  variant="primary"
+                  size="sm"
+                  onClick={() => navigate('/student/subscription')}
+                  className="flex items-center gap-1"
+                >
+                  <DollarSign className="w-4 h-4" />
+                  Subscribe to see budget
+                </Button>
+              )}
                     {job.duration && (
                       <span className="text-sm text-gray-600">
                         {job.duration}

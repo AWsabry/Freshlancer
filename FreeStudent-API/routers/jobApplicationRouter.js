@@ -30,6 +30,13 @@ router.patch(
   jobApplicationController.withdrawApplication
 );
 
+// Check if student has already applied to a specific job
+router.get(
+  '/check/:jobId',
+  authController.restrictTo('student'),
+  jobApplicationController.checkApplicationStatus
+);
+
 // Apply for a specific job post
 router.post(
   '/apply/:jobId',

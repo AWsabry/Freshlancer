@@ -1,6 +1,7 @@
 const express = require('express');
 const studentVerificationController = require('../controllers/studentVerificationController');
 const authController = require('../controllers/authController');
+const { uploadVerificationDocument } = require('../middleware/upload');
 
 const router = express.Router();
 
@@ -8,7 +9,7 @@ const router = express.Router();
 router.use(authController.protect);
 
 // Student routes
-router.post('/upload', studentVerificationController.uploadDocument);
+router.post('/upload', uploadVerificationDocument.single('document'), studentVerificationController.uploadDocument);
 router.get('/me', studentVerificationController.getMyVerifications);
 router.get('/status', studentVerificationController.getVerificationStatus);
 

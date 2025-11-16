@@ -169,16 +169,6 @@ const Applications = () => {
         <Button
           variant="primary"
           size="sm"
-          onClick={() => navigate(`/student/jobs/${application.jobPost?._id}`)}
-          className="flex items-center gap-2"
-          disabled={!application.jobPost}
-        >
-          <Eye className="w-4 h-4" />
-          View Job
-        </Button>
-        <Button
-          variant="primary"
-          size="sm"
           onClick={() => navigate(`/student/applications/${application._id}`)}
           className="flex items-center gap-2"
         >

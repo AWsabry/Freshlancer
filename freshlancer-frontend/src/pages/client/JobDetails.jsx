@@ -30,7 +30,7 @@ const JobDetails = () => {
   const getStatusBadge = (status) => {
     const statusConfig = {
       open: { variant: 'success', label: 'Open' },
-      'in-progress': { variant: 'info', label: 'In Progress' },
+      in_progress: { variant: 'info', label: 'In Progress' },
       completed: { variant: 'default', label: 'Completed' },
       cancelled: { variant: 'error', label: 'Cancelled' },
     };

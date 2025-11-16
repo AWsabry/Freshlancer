@@ -24,10 +24,11 @@ exports.applyForJob = catchAsync(async (req, res, next) => {
     );
   }
 
-  // Check if student has already applied
+  // Check if student has already applied (excluding withdrawn applications)
   const existingApplication = await JobApplication.findOne({
     jobPost: req.params.jobId,
     student: req.user.id,
+    status: { $ne: 'withdrawn' }, // Exclude withdrawn applications
   });
 
   if (existingApplication) {
@@ -436,6 +437,28 @@ exports.getJobApplications = catchAsync(async (req, res, next) => {
     },
     data: {
       applications,
+    },
+  });
+});
+
+// Check if student has already applied to a job
+exports.checkApplicationStatus = catchAsync(async (req, res, next) => {
+  if (req.user.role !== 'student') {
+    return next(new AppError('Only students can check application status', 403));
+  }
+
+  // Check if student has already applied (excluding withdrawn applications)
+  const existingApplication = await JobApplication.findOne({
+    jobPost: req.params.jobId,
+    student: req.user.id,
+    status: { $ne: 'withdrawn' }, // Exclude withdrawn applications
+  });
+
+  res.status(200).json({
+    status: 'success',
+    data: {
+      hasApplied: !!existingApplication,
+      application: existingApplication || null,
     },
   });
 });

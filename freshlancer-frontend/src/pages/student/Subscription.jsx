@@ -16,6 +16,12 @@ const Subscription = () => {
     queryFn: () => subscriptionService.getMySubscription(),
   });
 
+  // Fetch pricing based on user's currency
+  const { data: pricingData, isLoading: pricingLoading } = useQuery({
+    queryKey: ['subscriptionPricing'],
+    queryFn: () => subscriptionService.getPricing(),
+  });
+
   const upgradeMutation = useMutation({
     mutationFn: (paymentData) => subscriptionService.upgradeToPremium(paymentData),
     onSuccess: () => {
@@ -35,7 +41,7 @@ const Subscription = () => {
     },
   });
 
-  if (isLoading) {
+  if (isLoading || pricingLoading) {
     return <Loading text="Loading subscription..." />;
   }
 
@@ -45,13 +51,23 @@ const Subscription = () => {
   const applicationsLimit = subscription?.applicationLimitPerMonth || 10;
   const applicationsRemaining = applicationsLimit - applicationsUsed;
 
+  // Get pricing data
+  const pricing = pricingData?.data?.data;
+  const currency = pricing?.currency || 'USD';
+  const monthlyPrice = pricing?.plans?.premium?.billingCycles?.monthly?.price?.amount || 9.99;
+  const quarterlyPrice = pricing?.plans?.premium?.billingCycles?.quarterly?.price?.amount || 24.99;
+  const yearlyPrice = pricing?.plans?.premium?.billingCycles?.yearly?.price?.amount || 79.99;
+  const quarterlySavings = pricing?.plans?.premium?.billingCycles?.quarterly?.savings || 0;
+  const yearlySavings = pricing?.plans?.premium?.billingCycles?.yearly?.savings || 0;
+
   const handleUpgrade = () => {
     // In production, integrate with payment gateway (Stripe/PayPal)
-    const confirmed = confirm('Upgrade to Premium for $19.99/month?');
+    const confirmed = confirm(`Upgrade to Premium for ${currency} ${monthlyPrice.toFixed(2)}/month?`);
     if (confirmed) {
       upgradeMutation.mutate({
         paymentMethod: 'stripe', // Placeholder
-        amount: 19.99,
+        amount: monthlyPrice,
+        currency,
       });
     }
   };
@@ -166,8 +182,18 @@ const Subscription = () => {
             </div>
             <h3 className="text-2xl font-bold mb-2 text-primary-600">Premium</h3>
             <p className="text-4xl font-bold mb-4">
-              $19.99<span className="text-lg text-gray-500">/month</span>
+              {currency} {monthlyPrice.toFixed(2)}<span className="text-lg text-gray-500">/month</span>
             </p>
+            {quarterlySavings > 0 && (
+              <p className="text-sm text-green-600 mb-2">
+                Save {currency} {quarterlySavings.toFixed(2)} with quarterly plan ({currency} {quarterlyPrice.toFixed(2)}/3 months)
+              </p>
+            )}
+            {yearlySavings > 0 && (
+              <p className="text-sm text-green-600 mb-2">
+                Save {currency} {yearlySavings.toFixed(2)} with yearly plan ({currency} {yearlyPrice.toFixed(2)}/year)
+              </p>
+            )}
             <ul className="space-y-3 mb-6">
               <li className="flex items-start">
                 <CheckCircle className="w-5 h-5 text-green-500 mr-2 flex-shrink-0 mt-0.5" />

@@ -21,6 +21,11 @@ exports.uploadDocument = catchAsync(async (req, res, next) => {
     return next(new AppError('Your account is already verified', 400));
   }
 
+  // Check if file was uploaded
+  if (!req.file) {
+    return next(new AppError('Please upload a verification document', 400));
+  }
+
   // Check if there's a pending verification
   const pendingVerification = await StudentVerification.findOne({
     student: req.user._id,
@@ -39,9 +44,9 @@ exports.uploadDocument = catchAsync(async (req, res, next) => {
   const verificationData = {
     student: req.user._id,
     documentType: req.body.documentType,
-    documentUrl: req.body.documentUrl,
-    fileName: req.body.fileName,
-    fileSize: req.body.fileSize,
+    documentUrl: `/uploads/verification-documents/${req.file.filename}`,
+    fileName: req.file.originalname,
+    fileSize: req.file.size,
     institutionName: req.body.institutionName,
     studentIdNumber: req.body.studentIdNumber,
     enrollmentYear: req.body.enrollmentYear,
@@ -125,8 +130,12 @@ exports.getAllVerifications = catchAsync(async (req, res, next) => {
   const filter = {};
   if (req.query.status) filter.status = req.query.status;
   if (req.query.documentType) filter.documentType = req.query.documentType;
+  if (req.query.student) filter.student = req.query.student;
 
-  const verifications = await StudentVerification.find(filter).sort('-uploadedAt');
+  const verifications = await StudentVerification.find(filter)
+    .populate('student', 'name email photo')
+    .populate('reviewedBy', 'name email')
+    .sort('-uploadedAt');
 
   res.status(200).json({
     status: 'success',

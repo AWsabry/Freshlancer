@@ -30,4 +30,11 @@ export const subscriptionService = {
   getUsageStats: async () => {
     return api.get('/subscriptions/usage-stats');
   },
+
+  // Get subscription pricing (based on user's currency)
+  getPricing: async (currency) => {
+    return api.get('/subscriptions/pricing', {
+      params: currency ? { currency } : {},
+    });
+  },
 };
