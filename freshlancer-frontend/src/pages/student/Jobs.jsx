@@ -1,8 +1,9 @@
-import React, { useState } from 'react';
+import React, { useState, useMemo } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useInfiniteQuery, useQuery } from '@tanstack/react-query';
 import { jobService } from '../../services/jobService';
 import { subscriptionService } from '../../services/subscriptionService';
+import { applicationService } from '../../services/applicationService';
 import Button from '../../components/common/Button';
 import Input from '../../components/common/Input';
 import Select from '../../components/common/Select';
@@ -17,6 +18,7 @@ import {
   Briefcase,
   Filter,
   ChevronDown,
+  CheckCircle,
 } from 'lucide-react';
 
 const Jobs = () => {
@@ -25,12 +27,25 @@ const Jobs = () => {
   const [searchQuery, setSearchQuery] = useState('');
   const [category, setCategory] = useState('');
   const [showFilters, setShowFilters] = useState(false);
+  const [activeTab, setActiveTab] = useState('available'); // 'available' or 'applied'
 
   // Check subscription/application limit
   const { data: subscriptionData } = useQuery({
     queryKey: ['subscription'],
     queryFn: () => subscriptionService.getMySubscription(),
   });
+
+  // Fetch student's applications
+  const { data: applicationsData } = useQuery({
+    queryKey: ['myApplications'],
+    queryFn: () => applicationService.getMyApplications(),
+  });
+
+  const myApplications = applicationsData?.data?.data?.applications || [];
+  const appliedJobIds = useMemo(
+    () => new Set(myApplications.map((app) => app.jobPost?._id || app.jobPost)),
+    [myApplications]
+  );
 
   // Fetch jobs with infinite scroll
   const {
@@ -55,7 +70,25 @@ const Jobs = () => {
     },
   });
 
-  const jobs = data?.pages.flatMap((page) => page.data.jobPosts) || [];
+  const allJobs = data?.pages.flatMap((page) => page.data.jobPosts) || [];
+
+  // Separate available jobs from applied jobs
+  const availableJobs = useMemo(
+    () => allJobs.filter((job) => !appliedJobIds.has(job._id)),
+    [allJobs, appliedJobIds]
+  );
+
+  const appliedJobs = useMemo(
+    () => myApplications.map((app) => ({
+      ...app.jobPost,
+      applicationStatus: app.status,
+      applicationId: app._id,
+      appliedAt: app.createdAt,
+    })).filter((job) => job._id), // Filter out any null jobs
+    [myApplications]
+  );
+
+  const jobs = activeTab === 'available' ? availableJobs : appliedJobs;
 
   const handleSearch = (e) => {
     e.preventDefault();
@@ -106,6 +139,36 @@ const Jobs = () => {
         <p className="text-gray-600">
           Find your next opportunity • {subscription?.plan === 'premium' ? 'Unlimited' : applicationsRemaining} applications remaining
         </p>
+      </div>
+
+      {/* Tabs */}
+      <div className="mb-6">
+        <div className="border-b border-gray-200">
+          <nav className="-mb-px flex space-x-8">
+            <button
+              onClick={() => setActiveTab('available')}
+              className={`${
+                activeTab === 'available'
+                  ? 'border-primary-500 text-primary-600'
+                  : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
+              } whitespace-nowrap py-4 px-1 border-b-2 font-medium text-sm flex items-center gap-2`}
+            >
+              <Briefcase className="w-5 h-5" />
+              Available Jobs ({availableJobs.length})
+            </button>
+            <button
+              onClick={() => setActiveTab('applied')}
+              className={`${
+                activeTab === 'applied'
+                  ? 'border-primary-500 text-primary-600'
+                  : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
+              } whitespace-nowrap py-4 px-1 border-b-2 font-medium text-sm flex items-center gap-2`}
+            >
+              <CheckCircle className="w-5 h-5" />
+              Applied Jobs ({appliedJobs.length})
+            </button>
+          </nav>
+        </div>
       </div>
 
       {/* Search Bar */}
@@ -219,8 +282,31 @@ const Jobs = () => {
                   <div className="flex flex-col items-end gap-2">
                     <Badge variant="info">{job.category}</Badge>
                     {job.urgent && <Badge variant="error">Urgent</Badge>}
+                    {activeTab === 'applied' && job.applicationStatus && (
+                      <Badge
+                        variant={
+                          job.applicationStatus === 'accepted'
+                            ? 'success'
+                            : job.applicationStatus === 'rejected'
+                            ? 'error'
+                            : job.applicationStatus === 'shortlisted'
+                            ? 'warning'
+                            : 'secondary'
+                        }
+                      >
+                        {job.applicationStatus}
+                      </Badge>
+                    )}
                   </div>
                 </div>
+
+                {/* Applied At (for applied jobs) */}
+                {activeTab === 'applied' && job.appliedAt && (
+                  <div className="flex items-center gap-2 text-sm text-gray-600 mb-2">
+                    <CheckCircle className="w-4 h-4 text-green-600" />
+                    <span>Applied on {new Date(job.appliedAt).toLocaleDateString()}</span>
+                  </div>
+                )}
 
                 {/* Description */}
                 <p className="text-gray-700 mb-4 line-clamp-2">

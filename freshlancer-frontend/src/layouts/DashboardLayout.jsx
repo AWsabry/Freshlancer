@@ -50,10 +50,10 @@ const DashboardLayout = () => {
   const getNavigationItems = () => {
     const baseItems = [
       { name: 'Dashboard', icon: Home, path: `/${user?.role}/dashboard` },
-      { name: 'Notifications', icon: Bell, path: `/${user?.role}/notifications`, badge: unreadCount?.data?.unreadCount },
-      { name: 'Messages', icon: MessageSquare, path: `/${user?.role}/messages` },
+      // { name: 'Notifications', icon: Bell, path: `/${user?.role}/notifications`, badge: unreadCount?.data?.unreadCount },
+      // { name: 'Messages', icon: MessageSquare, path: `/${user?.role}/messages` },
       { name: 'Profile', icon: User, path: `/${user?.role}/profile` },
-      { name: 'Settings', icon: Settings, path: `/${user?.role}/settings` },
+      // { name: 'Settings', icon: Settings, path: `/${user?.role}/settings` },
     ];
 
     if (user?.role === 'student') {
@@ -61,7 +61,7 @@ const DashboardLayout = () => {
         ...baseItems.slice(0, 1),
         { name: 'Browse Jobs', icon: Briefcase, path: '/student/jobs' },
         { name: 'My Applications', icon: FileText, path: '/student/applications' },
-        { name: 'My Contracts', icon: FileText, path: '/student/contracts' },
+        // { name: 'My Contracts', icon: FileText, path: '/student/contracts' },
         { name: 'Subscription', icon: CreditCard, path: '/student/subscription' },
         { name: 'Reviews', icon: Star, path: '/student/reviews' },
         ...baseItems.slice(1),
@@ -84,11 +84,12 @@ const DashboardLayout = () => {
     if (user?.role === 'admin') {
       return [
         ...baseItems.slice(0, 1),
-        { name: 'Verifications', icon: Shield, path: '/admin/verifications' },
         { name: 'Users', icon: Users, path: '/admin/users' },
+        { name: 'Applications', icon: FileText, path: '/admin/applications' },
         { name: 'Jobs', icon: Briefcase, path: '/admin/jobs' },
-        { name: 'Contracts', icon: FileText, path: '/admin/contracts' },
-        { name: 'Transactions', icon: DollarSign, path: '/admin/transactions' },
+        // { name: 'Verifications', icon: Shield, path: '/admin/verifications' },
+        // { name: 'Contracts', icon: FileText, path: '/admin/contracts' },
+        // { name: 'Transactions', icon: DollarSign, path: '/admin/transactions' },
         { name: 'Reviews', icon: Star, path: '/admin/reviews' },
         ...baseItems.slice(1),
       ];

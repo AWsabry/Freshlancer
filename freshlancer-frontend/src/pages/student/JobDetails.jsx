@@ -48,6 +48,20 @@ const JobDetails = () => {
     queryFn: () => subscriptionService.checkApplicationLimit(),
   });
 
+  // Fetch student's applications to check if already applied
+  const { data: applicationsData } = useQuery({
+    queryKey: ['myApplications'],
+    queryFn: () => applicationService.getMyApplications(),
+  });
+
+  const myApplications = applicationsData?.data?.data?.applications || [];
+  const hasAlreadyApplied = myApplications.some(
+    (app) => (app.jobPost?._id || app.jobPost) === id
+  );
+  const existingApplication = myApplications.find(
+    (app) => (app.jobPost?._id || app.jobPost) === id
+  );
+
   // Apply mutation
   const applyMutation = useMutation({
     mutationFn: (applicationData) => applicationService.applyToJob(applicationData),
@@ -55,10 +69,11 @@ const JobDetails = () => {
       queryClient.invalidateQueries(['subscription']);
       queryClient.invalidateQueries(['applicationLimit']);
       queryClient.invalidateQueries(['myApplications']);
+      queryClient.invalidateQueries(['jobs']); // Invalidate jobs list to update Available/Applied tabs
       setShowApplicationModal(false);
       reset();
-      alert('Application submitted successfully!');
-      navigate('/student/applications');
+      alert('Application submitted successfully! The job has been moved to your Applied Jobs.');
+      navigate('/student/jobs');
     },
     onError: (error) => {
       alert(error.message || 'Failed to submit application');
@@ -195,7 +210,14 @@ const JobDetails = () => {
 
         {/* Apply Button */}
         <div className="pt-6 border-t">
-          {!canApply && (
+          {hasAlreadyApplied && (
+            <Alert
+              type="success"
+              message={`You have already applied for this job. Application status: ${existingApplication?.status || 'pending'}`}
+              className="mb-4"
+            />
+          )}
+          {!canApply && !hasAlreadyApplied && (
             <Alert
               type="error"
               message="You've reached your monthly application limit. Upgrade to Premium for unlimited applications!"
@@ -207,14 +229,24 @@ const JobDetails = () => {
             size="lg"
             className="w-full"
             onClick={() => setShowApplicationModal(true)}
-            disabled={!canApply}
+            disabled={!canApply || hasAlreadyApplied}
           >
-            Apply for this Job
+            {hasAlreadyApplied ? 'Already Applied' : 'Apply for this Job'}
           </Button>
-          {subscription?.plan !== 'premium' && (
+          {subscription?.plan !== 'premium' && !hasAlreadyApplied && (
             <p className="text-sm text-gray-600 text-center mt-2">
               {limitData?.data?.currentUsage || 0} / {limitData?.data?.limit || 10} applications used this month
             </p>
+          )}
+          {hasAlreadyApplied && (
+            <div className="text-center mt-4">
+              <Button
+                variant="outline"
+                onClick={() => navigate('/student/applications')}
+              >
+                View My Applications
+              </Button>
+            </div>
           )}
         </div>
       </Card>

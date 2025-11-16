@@ -436,3 +436,95 @@ exports.getMe = catchAsync(async (req, res, next) => {
     },
   });
 });
+
+// Update user profile (personal info and student profile)
+exports.updateMe = catchAsync(async (req, res, next) => {
+  // 1) Create error if user POSTs password data
+  if (req.body.password || req.body.passwordConfirm) {
+    return next(
+      new AppError(
+        'This route is not for password updates. Please use /updateMyPassword.',
+        400
+      )
+    );
+  }
+
+  // 2) Fields that are not allowed to be updated
+  const restrictedFields = ['email', 'role', 'emailVerified', 'active', 'suspended'];
+  restrictedFields.forEach((field) => {
+    if (req.body[field] !== undefined) {
+      delete req.body[field];
+    }
+  });
+
+  // 3) Build update object for allowed fields
+  const updateData = {};
+
+  // Personal information fields
+  const allowedPersonalFields = ['name', 'photo', 'phone', 'age', 'gender', 'nationality'];
+  allowedPersonalFields.forEach((field) => {
+    if (req.body[field] !== undefined) {
+      updateData[field] = req.body[field];
+    }
+  });
+
+  // Location fields
+  if (req.body.location) {
+    updateData.location = {};
+    if (req.body.location.country) updateData.location.country = req.body.location.country;
+    if (req.body.location.city) updateData.location.city = req.body.location.city;
+    if (req.body.location.timezone) updateData.location.timezone = req.body.location.timezone;
+  }
+
+  // Student profile fields (only for students)
+  if (req.user.role === 'student' && req.body.studentProfile) {
+    const sp = req.body.studentProfile;
+    updateData.studentProfile = {};
+
+    // Skills
+    if (sp.skills) updateData['studentProfile.skills'] = sp.skills;
+
+    // Education
+    if (sp.education) updateData['studentProfile.education'] = sp.education;
+
+    // Experience
+    if (sp.experienceLevel) updateData['studentProfile.experienceLevel'] = sp.experienceLevel;
+    if (sp.yearsOfExperience !== undefined)
+      updateData['studentProfile.yearsOfExperience'] = sp.yearsOfExperience;
+
+    // Hourly rate
+    if (sp.hourlyRate) updateData['studentProfile.hourlyRate'] = sp.hourlyRate;
+
+    // Portfolio
+    if (sp.portfolio) updateData['studentProfile.portfolio'] = sp.portfolio;
+
+    // Social links
+    if (sp.socialLinks) updateData['studentProfile.socialLinks'] = sp.socialLinks;
+
+    // Bio and availability
+    if (sp.bio) updateData['studentProfile.bio'] = sp.bio;
+    if (sp.availability) updateData['studentProfile.availability'] = sp.availability;
+
+    // Languages
+    if (sp.languages) updateData['studentProfile.languages'] = sp.languages;
+
+    // Certifications
+    if (sp.certifications) updateData['studentProfile.certifications'] = sp.certifications;
+
+    // Resume
+    if (sp.resume) updateData['studentProfile.resume'] = sp.resume;
+  }
+
+  // 4) Update user document
+  const updatedUser = await User.findByIdAndUpdate(req.user.id, updateData, {
+    new: true,
+    runValidators: true,
+  });
+
+  res.status(200).json({
+    status: 'success',
+    data: {
+      user: updatedUser,
+    },
+  });
+});

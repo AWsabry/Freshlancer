@@ -44,7 +44,11 @@ export const authService = {
 
   // Update profile
   updateProfile: async (data) => {
-    return api.patch('/users/updateMe', data);
+    const response = await api.patch('/users/updateMe', data);
+    if (response.data?.user) {
+      localStorage.setItem('user', JSON.stringify(response.data.user));
+    }
+    return response;
   },
 
   // Change password

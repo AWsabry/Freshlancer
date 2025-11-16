@@ -39,6 +39,7 @@ import ClientTransactions from './pages/client/Transactions';
 import AdminDashboard from './pages/admin/Dashboard';
 import AdminVerifications from './pages/admin/Verifications';
 import AdminUsers from './pages/admin/Users';
+import AdminApplications from './pages/admin/Applications';
 import AdminJobs from './pages/admin/Jobs';
 import AdminContracts from './pages/admin/Contracts';
 import AdminTransactions from './pages/admin/Transactions';
@@ -109,8 +110,9 @@ function App() {
         }
       >
         <Route path="dashboard" element={<AdminDashboard />} />
-        <Route path="verifications" element={<AdminVerifications />} />
         <Route path="users" element={<AdminUsers />} />
+        <Route path="applications" element={<AdminApplications />} />
+        <Route path="verifications" element={<AdminVerifications />} />
         <Route path="jobs" element={<AdminJobs />} />
         <Route path="contracts" element={<AdminContracts />} />
         <Route path="transactions" element={<AdminTransactions />} />

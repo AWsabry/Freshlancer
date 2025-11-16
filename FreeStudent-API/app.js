@@ -21,6 +21,7 @@ const contractRouter = require('./routers/contractRouter');
 const notificationRouter = require('./routers/notificationRouter');
 const transactionRouter = require('./routers/transactionRouter');
 const reviewRouter = require('./routers/reviewRouter');
+const adminRouter = require('./routers/adminRouter');
 const AppError = require('./utils/AppError');
 const globalErrorHandler = require('./controllers/errorController');
 
@@ -86,6 +87,7 @@ app.use('/api/v1/contracts', contractRouter);
 app.use('/api/v1/notifications', notificationRouter);
 app.use('/api/v1/transactions', transactionRouter);
 app.use('/api/v1/reviews', reviewRouter);
+app.use('/api/v1/admin', adminRouter);
 
 //global middleware to handle unhandled routes
 app.all('*', (req, res, next) => {
