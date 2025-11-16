@@ -133,6 +133,17 @@ exports.login = catchAsync(async (req, res, next) => {
     return next(new AppError('Invalid email or password', 401));
   }
 
+  // Check if user account is deleted
+  if (user.active === false) {
+    return next(new AppError('This account has been deleted. Please contact support if you believe this is an error.', 401));
+  }
+
+  // Check if user is suspended
+  if (user.suspended) {
+    const reason = user.suspensionReason || 'No reason provided';
+    return next(new AppError(`Your account has been suspended. Reason: ${reason}. Please contact support for assistance.`, 403));
+  }
+
   // Check if password is correct
   const isPasswordCorrect = await user.checkPassword(password, user.password);
   if (!isPasswordCorrect) {
@@ -175,6 +186,17 @@ exports.protect = catchAsync(async (req, res, next) => {
   //3)check if user still exist
   const currentUser = await User.findById(decoded.id);
   if (!currentUser) return next(new AppError('user token dose not exist', 401));
+
+  //3.5)check if user account is deleted
+  if (currentUser.active === false) {
+    return next(new AppError('This account has been deleted. Please contact support if you believe this is an error.', 401));
+  }
+
+  //3.6)check if user is suspended
+  if (currentUser.suspended) {
+    const reason = currentUser.suspensionReason || 'No reason provided';
+    return next(new AppError(`Your account has been suspended. Reason: ${reason}. Please contact support for assistance.`, 403));
+  }
 
   //4)check if user change the password after the token was issued
   if (currentUser.changePasswordAfter(decoded.iat)) {
@@ -479,40 +501,43 @@ exports.updateMe = catchAsync(async (req, res, next) => {
   // Student profile fields (only for students)
   if (req.user.role === 'student' && req.body.studentProfile) {
     const sp = req.body.studentProfile;
-    updateData.studentProfile = {};
 
     // Skills
-    if (sp.skills) updateData['studentProfile.skills'] = sp.skills;
+    if (sp.skills !== undefined) updateData['studentProfile.skills'] = sp.skills;
 
     // Education
-    if (sp.education) updateData['studentProfile.education'] = sp.education;
+    if (sp.education !== undefined) updateData['studentProfile.education'] = sp.education;
 
     // Experience
-    if (sp.experienceLevel) updateData['studentProfile.experienceLevel'] = sp.experienceLevel;
+    if (sp.experienceLevel !== undefined) updateData['studentProfile.experienceLevel'] = sp.experienceLevel;
     if (sp.yearsOfExperience !== undefined)
       updateData['studentProfile.yearsOfExperience'] = sp.yearsOfExperience;
 
-    // Hourly rate
-    if (sp.hourlyRate) updateData['studentProfile.hourlyRate'] = sp.hourlyRate;
+    // Hourly rate - handle nested fields individually
+    if (sp.hourlyRate !== undefined) {
+      if (sp.hourlyRate.min !== undefined) updateData['studentProfile.hourlyRate.min'] = sp.hourlyRate.min;
+      if (sp.hourlyRate.max !== undefined) updateData['studentProfile.hourlyRate.max'] = sp.hourlyRate.max;
+      if (sp.hourlyRate.currency !== undefined) updateData['studentProfile.hourlyRate.currency'] = sp.hourlyRate.currency;
+    }
 
     // Portfolio
-    if (sp.portfolio) updateData['studentProfile.portfolio'] = sp.portfolio;
+    if (sp.portfolio !== undefined) updateData['studentProfile.portfolio'] = sp.portfolio;
 
     // Social links
-    if (sp.socialLinks) updateData['studentProfile.socialLinks'] = sp.socialLinks;
+    if (sp.socialLinks !== undefined) updateData['studentProfile.socialLinks'] = sp.socialLinks;
 
     // Bio and availability
-    if (sp.bio) updateData['studentProfile.bio'] = sp.bio;
-    if (sp.availability) updateData['studentProfile.availability'] = sp.availability;
+    if (sp.bio !== undefined) updateData['studentProfile.bio'] = sp.bio;
+    if (sp.availability !== undefined) updateData['studentProfile.availability'] = sp.availability;
 
     // Languages
-    if (sp.languages) updateData['studentProfile.languages'] = sp.languages;
+    if (sp.languages !== undefined) updateData['studentProfile.languages'] = sp.languages;
 
     // Certifications
-    if (sp.certifications) updateData['studentProfile.certifications'] = sp.certifications;
+    if (sp.certifications !== undefined) updateData['studentProfile.certifications'] = sp.certifications;
 
     // Resume
-    if (sp.resume) updateData['studentProfile.resume'] = sp.resume;
+    if (sp.resume !== undefined) updateData['studentProfile.resume'] = sp.resume;
   }
 
   // 4) Update user document
@@ -523,6 +548,88 @@ exports.updateMe = catchAsync(async (req, res, next) => {
 
   res.status(200).json({
     status: 'success',
+    data: {
+      user: updatedUser,
+    },
+  });
+});
+
+// Upload resume/CV
+exports.uploadResume = catchAsync(async (req, res, next) => {
+  if (!req.file) {
+    return next(new AppError('Please upload a file', 400));
+  }
+
+  // Only allow students to upload resumes
+  if (req.user.role !== 'student') {
+    return next(new AppError('Only students can upload resumes', 403));
+  }
+
+  // Get the file path (relative to server root for storage)
+  const filePath = `/uploads/resumes/${req.file.filename}`;
+
+  // Update user's student profile with resume information
+  const updatedUser = await User.findByIdAndUpdate(
+    req.user.id,
+    {
+      'studentProfile.resume': {
+        filename: req.file.originalname,
+        url: filePath,
+        uploadedAt: Date.now(),
+      },
+    },
+    {
+      new: true,
+      runValidators: true,
+    }
+  );
+
+  res.status(200).json({
+    status: 'success',
+    message: 'Resume uploaded successfully',
+    data: {
+      resume: updatedUser.studentProfile.resume,
+    },
+  });
+});
+
+// Delete resume/CV
+exports.deleteResume = catchAsync(async (req, res, next) => {
+  // Only allow students to delete resumes
+  if (req.user.role !== 'student') {
+    return next(new AppError('Only students can delete resumes', 403));
+  }
+
+  const user = await User.findById(req.user.id);
+
+  if (!user.studentProfile?.resume?.url) {
+    return next(new AppError('No resume found to delete', 404));
+  }
+
+  // Delete the file from filesystem
+  const fs = require('fs');
+  const path = require('path');
+  const filePath = path.join(__dirname, '..', user.studentProfile.resume.url);
+
+  if (fs.existsSync(filePath)) {
+    fs.unlinkSync(filePath);
+  }
+
+  // Update user's student profile to remove resume
+  const updatedUser = await User.findByIdAndUpdate(
+    req.user.id,
+    {
+      'studentProfile.resume': undefined,
+    },
+    {
+      new: true,
+      runValidators: true,
+    }
+  );
+
+  res.status(200).json({
+    status: 'success',
+    message: 'Resume deleted successfully',
     data: {
       user: updatedUser,
     },

@@ -72,4 +72,41 @@ export const authService = {
       passwordConfirm: password,
     });
   },
+
+  // Upload resume
+  uploadResume: async (file) => {
+    const formData = new FormData();
+    formData.append('resume', file);
+
+    const response = await api.post('/users/uploadResume', formData, {
+      headers: {
+        'Content-Type': 'multipart/form-data',
+      },
+    });
+
+    // Update user in localStorage with new resume info
+    if (response.data?.resume) {
+      const user = JSON.parse(localStorage.getItem('user'));
+      if (user && user.studentProfile) {
+        user.studentProfile.resume = response.data.resume;
+        localStorage.setItem('user', JSON.stringify(user));
+      }
+    }
+
+    return response;
+  },
+
+  // Delete resume
+  deleteResume: async () => {
+    const response = await api.delete('/users/deleteResume');
+
+    // Update user in localStorage to remove resume
+    const user = JSON.parse(localStorage.getItem('user'));
+    if (user && user.studentProfile) {
+      user.studentProfile.resume = undefined;
+      localStorage.setItem('user', JSON.stringify(user));
+    }
+
+    return response;
+  },
 };

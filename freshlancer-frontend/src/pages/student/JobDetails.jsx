@@ -210,42 +210,55 @@ const JobDetails = () => {
 
         {/* Apply Button */}
         <div className="pt-6 border-t">
-          {hasAlreadyApplied && (
-            <Alert
-              type="success"
-              message={`You have already applied for this job. Application status: ${existingApplication?.status || 'pending'}`}
-              className="mb-4"
-            />
-          )}
-          {!canApply && !hasAlreadyApplied && (
-            <Alert
-              type="error"
-              message="You've reached your monthly application limit. Upgrade to Premium for unlimited applications!"
-              className="mb-4"
-            />
-          )}
-          <Button
-            variant="primary"
-            size="lg"
-            className="w-full"
-            onClick={() => setShowApplicationModal(true)}
-            disabled={!canApply || hasAlreadyApplied}
-          >
-            {hasAlreadyApplied ? 'Already Applied' : 'Apply for this Job'}
-          </Button>
-          {subscription?.plan !== 'premium' && !hasAlreadyApplied && (
-            <p className="text-sm text-gray-600 text-center mt-2">
-              {limitData?.data?.currentUsage || 0} / {limitData?.data?.limit || 10} applications used this month
-            </p>
-          )}
-          {hasAlreadyApplied && (
-            <div className="text-center mt-4">
+          {hasAlreadyApplied ? (
+            <div>
+              <Alert
+                type="success"
+                message={`You have already applied for this job. Application status: ${existingApplication?.status || 'pending'}`}
+                className="mb-4"
+              />
+              <div className="flex gap-3">
+                <Button
+                  variant="primary"
+                  size="lg"
+                  className="flex-1"
+                  onClick={() => navigate(`/student/applications/${existingApplication?._id}`)}
+                >
+                  View My Application
+                </Button>
+                <Button
+                  variant="outline"
+                  size="lg"
+                  className="flex-1"
+                  onClick={() => navigate('/student/applications')}
+                >
+                  All Applications
+                </Button>
+              </div>
+            </div>
+          ) : (
+            <div>
+              {!canApply && (
+                <Alert
+                  type="error"
+                  message="You've reached your monthly application limit. Upgrade to Premium for unlimited applications!"
+                  className="mb-4"
+                />
+              )}
               <Button
-                variant="outline"
-                onClick={() => navigate('/student/applications')}
+                variant="primary"
+                size="lg"
+                className="w-full"
+                onClick={() => setShowApplicationModal(true)}
+                disabled={!canApply}
               >
-                View My Applications
+                Apply for this Job
               </Button>
+              {subscription?.plan !== 'premium' && (
+                <p className="text-sm text-gray-600 text-center mt-2">
+                  {limitData?.data?.currentUsage || 0} / {limitData?.data?.limit || 10} applications used this month
+                </p>
+              )}
             </div>
           )}
         </div>

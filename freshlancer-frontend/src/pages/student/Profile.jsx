@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useRef } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { useForm } from 'react-hook-form';
 import { authService } from '../../services/authService';
@@ -29,12 +29,16 @@ import {
   Clock,
   Edit,
   Save,
+  Upload,
+  Trash2,
 } from 'lucide-react';
 
 const Profile = () => {
   const queryClient = useQueryClient();
   const [showEditModal, setShowEditModal] = useState(false);
-  const { register, handleSubmit, formState: { errors }, reset } = useForm();
+  const [uploadingResume, setUploadingResume] = useState(false);
+  const fileInputRef = useRef(null);
+  const { register, handleSubmit, formState: { errors }, reset, setValue } = useForm();
 
   // Fetch user profile
   const { data: userData, isLoading } = useQuery({
@@ -44,6 +48,106 @@ const Profile = () => {
 
   const user = userData?.data?.user;
   const studentProfile = user?.studentProfile;
+
+  // Update profile mutation
+  const updateProfileMutation = useMutation({
+    mutationFn: (data) => authService.updateProfile(data),
+    onSuccess: () => {
+      queryClient.invalidateQueries(['userProfile']);
+      setShowEditModal(false);
+      reset();
+      alert('Profile updated successfully!');
+    },
+    onError: (error) => {
+      alert(error.response?.data?.message || 'Failed to update profile');
+    },
+  });
+
+  // Handle opening edit modal and populating form
+  const handleOpenEditModal = () => {
+    if (user) {
+      // Set form default values
+      setValue('name', user.name || '');
+      setValue('phone', user.phone || '');
+      setValue('age', user.age || '');
+      setValue('gender', user.gender || '');
+      setValue('nationality', user.nationality || '');
+      setValue('location.country', user.location?.country || '');
+      setValue('location.city', user.location?.city || '');
+      setValue('location.timezone', user.location?.timezone || '');
+
+      if (studentProfile) {
+        setValue('studentProfile.bio', studentProfile.bio || '');
+        setValue('studentProfile.experienceLevel', studentProfile.experienceLevel || '');
+        setValue('studentProfile.yearsOfExperience', studentProfile.yearsOfExperience || 0);
+        setValue('studentProfile.availability', studentProfile.availability || 'Available');
+        setValue('studentProfile.hourlyRate.min', studentProfile.hourlyRate?.min || '');
+        setValue('studentProfile.hourlyRate.max', studentProfile.hourlyRate?.max || '');
+        setValue('studentProfile.hourlyRate.currency', studentProfile.hourlyRate?.currency || 'USD');
+      }
+    }
+    setShowEditModal(true);
+  };
+
+  // Handle form submission
+  const onSubmit = (data) => {
+    updateProfileMutation.mutate(data);
+  };
+
+  // Upload resume mutation
+  const uploadResumeMutation = useMutation({
+    mutationFn: (file) => authService.uploadResume(file),
+    onSuccess: () => {
+      queryClient.invalidateQueries(['userProfile']);
+      setUploadingResume(false);
+      alert('Resume uploaded successfully!');
+    },
+    onError: (error) => {
+      setUploadingResume(false);
+      alert(error.response?.data?.message || 'Failed to upload resume');
+    },
+  });
+
+  // Delete resume mutation
+  const deleteResumeMutation = useMutation({
+    mutationFn: () => authService.deleteResume(),
+    onSuccess: () => {
+      queryClient.invalidateQueries(['userProfile']);
+      alert('Resume deleted successfully!');
+    },
+    onError: (error) => {
+      alert(error.response?.data?.message || 'Failed to delete resume');
+    },
+  });
+
+  // Handle resume file selection
+  const handleResumeChange = (event) => {
+    const file = event.target.files[0];
+    if (file) {
+      // Validate file type
+      const allowedTypes = ['application/pdf', 'application/msword', 'application/vnd.openxmlformats-officedocument.wordprocessingml.document'];
+      if (!allowedTypes.includes(file.type)) {
+        alert('Please upload a PDF, DOC, or DOCX file');
+        return;
+      }
+
+      // Validate file size (5MB max)
+      if (file.size > 5 * 1024 * 1024) {
+        alert('File size must be less than 5MB');
+        return;
+      }
+
+      setUploadingResume(true);
+      uploadResumeMutation.mutate(file);
+    }
+  };
+
+  // Handle delete resume
+  const handleDeleteResume = () => {
+    if (window.confirm('Are you sure you want to delete your resume?')) {
+      deleteResumeMutation.mutate();
+    }
+  };
 
   const getVerificationBadgeVariant = (status) => {
     switch (status) {
@@ -112,11 +216,11 @@ const Profile = () => {
             <Button
               variant="outline"
               size="sm"
-              onClick={() => setEditMode(!editMode)}
+              onClick={handleOpenEditModal}
               className="flex items-center gap-2"
             >
               <Edit className="w-4 h-4" />
-              {editMode ? 'Cancel' : 'Edit Profile'}
+              Edit Profile
             </Button>
           </div>
         </div>
@@ -196,19 +300,21 @@ const Profile = () => {
                 </div>
               )}
 
-              <div>
-                <label className="flex items-center gap-2 text-sm font-medium text-gray-500 mb-1">
-                  <Calendar className="w-4 h-4" />
-                  Member Since
-                </label>
-                <p className="text-gray-900">
-                  {new Date(user.createdAt).toLocaleDateString('en-US', {
-                    year: 'numeric',
-                    month: 'long',
-                    day: 'numeric',
-                  })}
-                </p>
-              </div>
+              {user.createdAt && (
+                <div>
+                  <label className="flex items-center gap-2 text-sm font-medium text-gray-500 mb-1">
+                    <Calendar className="w-4 h-4" />
+                    Member Since
+                  </label>
+                  <p className="text-gray-900">
+                    {new Date(user.createdAt).toLocaleDateString('en-US', {
+                      year: 'numeric',
+                      month: 'long',
+                      day: 'numeric',
+                    })}
+                  </p>
+                </div>
+              )}
             </div>
           </Card>
 
@@ -473,32 +579,323 @@ const Profile = () => {
           )}
 
           {/* Resume */}
-          {studentProfile?.resume && studentProfile.resume.url && (
-            <Card title="Resume / CV">
-              <div className="flex items-center justify-between">
-                <div className="flex items-center gap-3">
-                  <FileText className="w-8 h-8 text-primary-600" />
-                  <div>
-                    <p className="font-medium text-gray-900">{studentProfile.resume.filename}</p>
-                    {studentProfile.resume.uploadedAt && (
-                      <p className="text-sm text-gray-600">
-                        Uploaded: {new Date(studentProfile.resume.uploadedAt).toLocaleDateString()}
-                      </p>
-                    )}
+          <Card title="Resume / CV">
+            {studentProfile?.resume && studentProfile.resume.url ? (
+              <div className="space-y-4">
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-3">
+                    <FileText className="w-8 h-8 text-primary-600" />
+                    <div>
+                      <p className="font-medium text-gray-900">{studentProfile.resume.filename}</p>
+                      {studentProfile.resume.uploadedAt && (
+                        <p className="text-sm text-gray-600">
+                          Uploaded: {new Date(studentProfile.resume.uploadedAt).toLocaleDateString()}
+                        </p>
+                      )}
+                    </div>
+                  </div>
+                  <div className="flex gap-2">
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={() => window.open(`http://localhost:8080${studentProfile.resume.url}`, '_blank')}
+                    >
+                      Download
+                    </Button>
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={handleDeleteResume}
+                      loading={deleteResumeMutation.isLoading}
+                      disabled={deleteResumeMutation.isLoading}
+                      className="text-red-600 hover:text-red-700 border-red-600 hover:border-red-700"
+                    >
+                      <Trash2 className="w-4 h-4" />
+                    </Button>
                   </div>
                 </div>
-                <Button
-                  variant="outline"
-                  size="sm"
-                  onClick={() => window.open(studentProfile.resume.url, '_blank')}
-                >
-                  Download
-                </Button>
+                <div className="pt-3 border-t">
+                  <input
+                    ref={fileInputRef}
+                    type="file"
+                    accept=".pdf,.doc,.docx"
+                    onChange={handleResumeChange}
+                    className="hidden"
+                  />
+                  <Button
+                    variant="secondary"
+                    size="sm"
+                    onClick={() => fileInputRef.current?.click()}
+                    loading={uploadingResume}
+                    disabled={uploadingResume}
+                    className="flex items-center gap-2"
+                  >
+                    <Upload className="w-4 h-4" />
+                    Replace Resume
+                  </Button>
+                </div>
               </div>
-            </Card>
-          )}
+            ) : (
+              <div className="text-center py-8">
+                <FileText className="w-16 h-16 text-gray-400 mx-auto mb-4" />
+                <p className="text-gray-600 mb-4">No resume uploaded yet</p>
+                <input
+                  ref={fileInputRef}
+                  type="file"
+                  accept=".pdf,.doc,.docx"
+                  onChange={handleResumeChange}
+                  className="hidden"
+                />
+                <Button
+                  variant="primary"
+                  onClick={() => fileInputRef.current?.click()}
+                  loading={uploadingResume}
+                  disabled={uploadingResume}
+                  className="flex items-center gap-2 mx-auto"
+                >
+                  <Upload className="w-4 h-4" />
+                  Upload Resume
+                </Button>
+                <p className="text-xs text-gray-500 mt-2">
+                  Supported formats: PDF, DOC, DOCX (Max 5MB)
+                </p>
+              </div>
+            )}
+          </Card>
         </div>
       </div>
+
+      {/* Edit Profile Modal */}
+      <Modal
+        isOpen={showEditModal}
+        onClose={() => setShowEditModal(false)}
+        title="Edit Profile"
+      >
+        <form onSubmit={handleSubmit(onSubmit)} className="space-y-6">
+          {/* Personal Information Section */}
+          <div>
+            <h3 className="text-lg font-semibold text-gray-900 mb-4">Personal Information</h3>
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              <Input
+                label="Full Name"
+                {...register('name', { required: 'Name is required' })}
+                error={errors.name?.message}
+                placeholder="Enter your full name"
+              />
+
+              <Input
+                label="Phone"
+                type="tel"
+                {...register('phone')}
+                error={errors.phone?.message}
+                placeholder="Enter your phone number"
+              />
+
+              <Input
+                label="Age"
+                type="number"
+                {...register('age', {
+                  min: { value: 16, message: 'Must be at least 16 years old' },
+                  max: { value: 100, message: 'Invalid age' }
+                })}
+                error={errors.age?.message}
+                placeholder="Enter your age"
+              />
+
+              <Select
+                label="Gender"
+                {...register('gender')}
+                error={errors.gender?.message}
+                options={[
+                  { value: '', label: 'Select gender' },
+                  { value: 'Male', label: 'Male' },
+                  { value: 'Female', label: 'Female' },
+                  { value: 'Other', label: 'Other' },
+                  { value: 'Prefer not to say', label: 'Prefer not to say' },
+                ]}
+              />
+
+              <Input
+                label="Nationality"
+                {...register('nationality')}
+                error={errors.nationality?.message}
+                placeholder="Enter your nationality"
+              />
+            </div>
+          </div>
+
+          {/* Location Section */}
+          <div>
+            <h3 className="text-lg font-semibold text-gray-900 mb-4">Location</h3>
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              <Input
+                label="Country"
+                {...register('location.country')}
+                error={errors.location?.country?.message}
+                placeholder="Enter your country"
+              />
+
+              <Input
+                label="City"
+                {...register('location.city')}
+                error={errors.location?.city?.message}
+                placeholder="Enter your city"
+              />
+
+              <Input
+                label="Timezone"
+                {...register('location.timezone')}
+                error={errors.location?.timezone?.message}
+                placeholder="e.g., UTC+3, EST"
+              />
+            </div>
+          </div>
+
+          {/* Professional Information Section */}
+          <div>
+            <h3 className="text-lg font-semibold text-gray-900 mb-4">Professional Information</h3>
+            <div className="grid grid-cols-1 gap-4">
+              <div className="col-span-full">
+                <label className="block text-sm font-medium text-gray-700 mb-2">
+                  Bio
+                </label>
+                <textarea
+                  {...register('studentProfile.bio')}
+                  rows={4}
+                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-transparent"
+                  placeholder="Tell us about yourself, your expertise, and what you're passionate about..."
+                />
+                {errors.studentProfile?.bio && (
+                  <p className="mt-1 text-sm text-red-600">{errors.studentProfile.bio.message}</p>
+                )}
+              </div>
+
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <Select
+                  label="Experience Level"
+                  {...register('studentProfile.experienceLevel')}
+                  error={errors.studentProfile?.experienceLevel?.message}
+                  options={[
+                    { value: '', label: 'Select experience level' },
+                    { value: 'Beginner', label: 'Beginner' },
+                    { value: 'Intermediate', label: 'Intermediate' },
+                    { value: 'Advanced', label: 'Advanced' },
+                    { value: 'Expert', label: 'Expert' },
+                  ]}
+                />
+
+                <Input
+                  label="Years of Experience"
+                  type="number"
+                  {...register('studentProfile.yearsOfExperience', {
+                    min: { value: 0, message: 'Cannot be negative' },
+                    max: { value: 50, message: 'Invalid years' }
+                  })}
+                  error={errors.studentProfile?.yearsOfExperience?.message}
+                  placeholder="0"
+                />
+
+                <Select
+                  label="Availability"
+                  {...register('studentProfile.availability')}
+                  error={errors.studentProfile?.availability?.message}
+                  options={[
+                    { value: 'Available', label: 'Available' },
+                    { value: 'Busy', label: 'Busy' },
+                    { value: 'Not Available', label: 'Not Available' },
+                  ]}
+                />
+
+                <Select
+                  label="Currency"
+                  {...register('studentProfile.hourlyRate.currency')}
+                  error={errors.studentProfile?.hourlyRate?.currency?.message}
+                  options={[
+                    { value: 'USD', label: 'USD ($) - US Dollar' },
+                    { value: 'EUR', label: 'EUR (€) - Euro' },
+                    { value: 'EGP', label: 'EGP (£) - Egyptian Pound' },
+                    { value: 'GBP', label: 'GBP (£) - British Pound' },
+                    { value: 'AED', label: 'AED (د.إ) - UAE Dirham' },
+                    { value: 'SAR', label: 'SAR (﷼) - Saudi Riyal' },
+                    { value: 'QAR', label: 'QAR (﷼) - Qatari Riyal' },
+                    { value: 'KWD', label: 'KWD (د.ك) - Kuwaiti Dinar' },
+                    { value: 'BHD', label: 'BHD (.د.ب) - Bahraini Dinar' },
+                    { value: 'OMR', label: 'OMR (﷼) - Omani Rial' },
+                    { value: 'JOD', label: 'JOD (د.ا) - Jordanian Dinar' },
+                    { value: 'LBP', label: 'LBP (ل.ل) - Lebanese Pound' },
+                    { value: 'ILS', label: 'ILS (₪) - Israeli Shekel' },
+                    { value: 'TRY', label: 'TRY (₺) - Turkish Lira' },
+                    { value: 'ZAR', label: 'ZAR (R) - South African Rand' },
+                    { value: 'MAD', label: 'MAD (د.م.) - Moroccan Dirham' },
+                    { value: 'TND', label: 'TND (د.ت) - Tunisian Dinar' },
+                    { value: 'DZD', label: 'DZD (د.ج) - Algerian Dinar' },
+                    { value: 'NGN', label: 'NGN (₦) - Nigerian Naira' },
+                    { value: 'KES', label: 'KES (KSh) - Kenyan Shilling' },
+                    { value: 'GHS', label: 'GHS (₵) - Ghanaian Cedi' },
+                    { value: 'UGX', label: 'UGX (USh) - Ugandan Shilling' },
+                    { value: 'TZS', label: 'TZS (TSh) - Tanzanian Shilling' },
+                    { value: 'ETB', label: 'ETB (Br) - Ethiopian Birr' },
+                    { value: 'CHF', label: 'CHF (Fr) - Swiss Franc' },
+                    { value: 'SEK', label: 'SEK (kr) - Swedish Krona' },
+                    { value: 'NOK', label: 'NOK (kr) - Norwegian Krone' },
+                    { value: 'DKK', label: 'DKK (kr) - Danish Krone' },
+                    { value: 'PLN', label: 'PLN (zł) - Polish Zloty' },
+                    { value: 'CZK', label: 'CZK (Kč) - Czech Koruna' },
+                    { value: 'HUF', label: 'HUF (Ft) - Hungarian Forint' },
+                    { value: 'RON', label: 'RON (lei) - Romanian Leu' },
+                    { value: 'BGN', label: 'BGN (лв) - Bulgarian Lev' },
+                    { value: 'HRK', label: 'HRK (kn) - Croatian Kuna' },
+                    { value: 'RUB', label: 'RUB (₽) - Russian Ruble' },
+                    { value: 'UAH', label: 'UAH (₴) - Ukrainian Hryvnia' },
+                  ]}
+                />
+
+                <Input
+                  label="Hourly Rate (Min)"
+                  type="number"
+                  {...register('studentProfile.hourlyRate.min', {
+                    min: { value: 0, message: 'Cannot be negative' }
+                  })}
+                  error={errors.studentProfile?.hourlyRate?.min?.message}
+                  placeholder="Minimum rate"
+                />
+
+                <Input
+                  label="Hourly Rate (Max)"
+                  type="number"
+                  {...register('studentProfile.hourlyRate.max', {
+                    min: { value: 0, message: 'Cannot be negative' }
+                  })}
+                  error={errors.studentProfile?.hourlyRate?.max?.message}
+                  placeholder="Maximum rate"
+                />
+              </div>
+            </div>
+          </div>
+
+          {/* Form Actions */}
+          <div className="flex justify-end gap-3 pt-4 border-t">
+            <Button
+              type="button"
+              variant="outline"
+              onClick={() => setShowEditModal(false)}
+              disabled={updateProfileMutation.isLoading}
+            >
+              Cancel
+            </Button>
+            <Button
+              type="submit"
+              variant="primary"
+              loading={updateProfileMutation.isLoading}
+              disabled={updateProfileMutation.isLoading}
+              className="flex items-center gap-2"
+            >
+              <Save className="w-4 h-4" />
+              Save Changes
+            </Button>
+          </div>
+        </form>
+      </Modal>
     </div>
   );
 };

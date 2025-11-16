@@ -14,6 +14,7 @@ import StudentVerification from './pages/student/Verification';
 import StudentJobs from './pages/student/Jobs';
 import StudentJobDetails from './pages/student/JobDetails';
 import StudentApplications from './pages/student/Applications';
+import StudentApplicationDetails from './pages/student/ApplicationDetails';
 import StudentContracts from './pages/student/Contracts';
 import StudentSubscription from './pages/student/Subscription';
 import StudentMessages from './pages/student/Messages';
@@ -68,6 +69,7 @@ function App() {
         <Route path="jobs" element={<StudentJobs />} />
         <Route path="jobs/:id" element={<StudentJobDetails />} />
         <Route path="applications" element={<StudentApplications />} />
+        <Route path="applications/:id" element={<StudentApplicationDetails />} />
         <Route path="contracts" element={<StudentContracts />} />
         <Route path="subscription" element={<StudentSubscription />} />
         <Route path="messages" element={<StudentMessages />} />

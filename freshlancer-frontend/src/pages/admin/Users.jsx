@@ -24,8 +24,11 @@ const Users = () => {
   const [searchParams, setSearchParams] = useSearchParams();
   const queryClient = useQueryClient();
 
-  const [searchTerm, setSearchTerm] = useState('');
+  const [searchInput, setSearchInput] = useState('');
+  const [searchTerm, setSearchTerm] = useState(''); // Actual search query
   const [roleFilter, setRoleFilter] = useState(searchParams.get('role') || '');
+  const [showDeleted, setShowDeleted] = useState(false);
+  const [showSuspended, setShowSuspended] = useState(false);
   const [selectedUser, setSelectedUser] = useState(null);
   const [showSuspendModal, setShowSuspendModal] = useState(false);
   const [showViewModal, setShowViewModal] = useState(false);
@@ -35,13 +38,14 @@ const Users = () => {
 
   // Fetch users
   const { data: usersData, isLoading, error } = useQuery({
-    queryKey: ['adminUsers', page, roleFilter, searchTerm],
+    queryKey: ['adminUsers', page, roleFilter, searchTerm, showDeleted],
     queryFn: () =>
       adminService.getAllUsers({
         page,
         limit: 20,
         role: roleFilter || undefined,
         search: searchTerm || undefined,
+        includeDeleted: showDeleted ? 'true' : undefined,
       }),
   });
 
@@ -79,11 +83,15 @@ const Users = () => {
   });
 
   const handleSearch = () => {
-    setSearchParams({ page: '1', role: roleFilter, search: searchTerm });
+    // Update the actual search term (triggers query refetch)
+    setSearchTerm(searchInput.trim());
+    // Reset to page 1 when searching
+    setSearchParams({ page: '1', role: roleFilter });
   };
 
   const handleRoleFilter = (role) => {
     setRoleFilter(role);
+    // Reset to page 1 when changing role filter
     setSearchParams({ page: '1', role });
   };
 
@@ -148,9 +156,18 @@ const Users = () => {
     );
   }
 
-  const users = usersData?.data?.users || [];
-  const totalPages = usersData?.totalPages || 1;
-  const currentPage = usersData?.currentPage || 1;
+  const allUsers = usersData?.data?.users || [];
+
+  // Client-side filter for suspended users
+  let users = allUsers;
+  if (showSuspended) {
+    users = allUsers.filter(user => user.suspended === true);
+  }
+
+  // Use backend pagination data when not filtering for suspended users
+  // When filtering suspended, we show all results without pagination
+  const totalPages = showSuspended ? 1 : (usersData?.totalPages || 1);
+  const currentPage = showSuspended ? 1 : (usersData?.currentPage || 1);
   const totalCount = usersData?.totalCount || 0;
 
   return (
@@ -163,58 +180,91 @@ const Users = () => {
             Users Management
           </h1>
           <p className="text-gray-600 mt-1">
-            Total: {totalCount} users
+            {showSuspended
+              ? `Showing: ${users.length} suspended user${users.length !== 1 ? 's' : ''}`
+              : `Total: ${totalCount} users`
+            }
           </p>
         </div>
       </div>
 
       {/* Filters */}
       <Card>
-        <div className="flex flex-col md:flex-row gap-4">
-          {/* Search */}
-          <div className="flex-1">
+        <div className="flex flex-col gap-4">
+          <div className="flex flex-col md:flex-row gap-4">
+            {/* Search */}
+            <div className="flex-1">
+              <div className="flex gap-2">
+                <input
+                  type="text"
+                  placeholder="Search by name or email..."
+                  value={searchInput}
+                  onChange={(e) => setSearchInput(e.target.value)}
+                  onKeyPress={(e) => e.key === 'Enter' && handleSearch()}
+                  className="flex-1 px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-transparent"
+                />
+                <Button onClick={handleSearch}>
+                  <Search className="w-4 h-4 mr-2" />
+                  Search
+                </Button>
+              </div>
+            </div>
+
+            {/* Role Filter */}
             <div className="flex gap-2">
-              <input
-                type="text"
-                placeholder="Search by name or email..."
-                value={searchTerm}
-                onChange={(e) => setSearchTerm(e.target.value)}
-                onKeyPress={(e) => e.key === 'Enter' && handleSearch()}
-                className="flex-1 px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-transparent"
-              />
-              <Button onClick={handleSearch}>
-                <Search className="w-4 h-4 mr-2" />
-                Search
+              <Button
+                variant={roleFilter === '' ? 'primary' : 'outline'}
+                onClick={() => handleRoleFilter('')}
+              >
+                All
+              </Button>
+              <Button
+                variant={roleFilter === 'student' ? 'primary' : 'outline'}
+                onClick={() => handleRoleFilter('student')}
+              >
+                Students
+              </Button>
+              <Button
+                variant={roleFilter === 'client' ? 'primary' : 'outline'}
+                onClick={() => handleRoleFilter('client')}
+              >
+                Clients
+              </Button>
+              <Button
+                variant={roleFilter === 'admin' ? 'primary' : 'outline'}
+                onClick={() => handleRoleFilter('admin')}
+              >
+                Admins
               </Button>
             </div>
           </div>
 
-          {/* Role Filter */}
-          <div className="flex gap-2">
-            <Button
-              variant={roleFilter === '' ? 'primary' : 'outline'}
-              onClick={() => handleRoleFilter('')}
-            >
-              All
-            </Button>
-            <Button
-              variant={roleFilter === 'student' ? 'primary' : 'outline'}
-              onClick={() => handleRoleFilter('student')}
-            >
-              Students
-            </Button>
-            <Button
-              variant={roleFilter === 'client' ? 'primary' : 'outline'}
-              onClick={() => handleRoleFilter('client')}
-            >
-              Clients
-            </Button>
-            <Button
-              variant={roleFilter === 'admin' ? 'primary' : 'outline'}
-              onClick={() => handleRoleFilter('admin')}
-            >
-              Admins
-            </Button>
+          {/* Show Deleted and Suspended Toggles */}
+          <div className="flex items-center gap-6 pt-2 border-t">
+            <div className="flex items-center gap-2">
+              <input
+                type="checkbox"
+                id="showDeleted"
+                checked={showDeleted}
+                onChange={(e) => setShowDeleted(e.target.checked)}
+                className="w-4 h-4 text-primary-600 border-gray-300 rounded focus:ring-primary-500"
+              />
+              <label htmlFor="showDeleted" className="text-sm text-gray-700 cursor-pointer">
+                Show deleted users
+              </label>
+            </div>
+            <div className="flex items-center gap-2">
+              <input
+                type="checkbox"
+                id="showSuspended"
+                checked={showSuspended}
+                onChange={(e) => setShowSuspended(e.target.checked)}
+                className="w-4 h-4 text-orange-600 border-gray-300 rounded focus:ring-orange-500"
+              />
+              <label htmlFor="showSuspended" className="text-sm text-gray-700 cursor-pointer">
+                Show only suspended users
+              </label>
+            </div>
           </div>
         </div>
       </Card>
@@ -276,7 +326,9 @@ const Users = () => {
                   </td>
                   <td className="px-4 py-4 whitespace-nowrap">
                     <div className="flex flex-col gap-1">
-                      {user.suspended ? (
+                      {user.active === false ? (
+                        <Badge variant="default">Deleted</Badge>
+                      ) : user.suspended ? (
                         <Badge variant="danger">Suspended</Badge>
                       ) : (
                         <Badge variant="success">Active</Badge>
@@ -291,7 +343,7 @@ const Users = () => {
                   <td className="px-4 py-4 whitespace-nowrap">
                     <div className="text-sm text-gray-500 flex items-center gap-1">
                       <Calendar className="w-3 h-3" />
-                      {new Date(user.createdAt).toLocaleDateString()}
+                      {user.createdAt ? new Date(user.createdAt).toLocaleDateString() : 'N/A'}
                     </div>
                   </td>
                   <td className="px-4 py-4 whitespace-nowrap">
@@ -332,8 +384,8 @@ const Users = () => {
           </table>
         </div>
 
-        {/* Pagination */}
-        {totalPages > 1 && (
+        {/* Pagination - Hidden when filtering suspended users */}
+        {!showSuspended && totalPages > 1 && (
           <div className="flex items-center justify-between mt-6 pt-4 border-t">
             <div className="text-sm text-gray-600">
               Page {currentPage} of {totalPages}
@@ -483,7 +535,7 @@ const Users = () => {
               <div>
                 <label className="text-sm font-medium text-gray-500">Joined Date</label>
                 <p className="text-gray-900">
-                  {new Date(selectedUser.createdAt).toLocaleDateString()}
+                  {selectedUser.createdAt ? new Date(selectedUser.createdAt).toLocaleDateString() : 'N/A'}
                 </p>
               </div>
             </div>

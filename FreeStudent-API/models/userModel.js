@@ -173,7 +173,16 @@ const userSchema = new mongoose.Schema({
       max: Number,
       currency: {
         type: String,
-        enum: ['USD', 'EUR', 'GBP', 'EGP'],
+        enum: [
+          // Major Currencies
+          'USD', 'EUR', 'EGP', 'GBP',
+          // Middle East
+          'AED', 'SAR', 'QAR', 'KWD', 'BHD', 'OMR', 'JOD', 'LBP', 'ILS', 'TRY',
+          // Africa
+          'ZAR', 'MAD', 'TND', 'DZD', 'NGN', 'KES', 'GHS', 'UGX', 'TZS', 'ETB',
+          // Europe
+          'CHF', 'SEK', 'NOK', 'DKK', 'PLN', 'CZK', 'HUF', 'RON', 'BGN', 'HRK', 'RUB', 'UAH'
+        ],
         default: 'USD',
       },
     },

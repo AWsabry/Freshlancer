@@ -6,10 +6,16 @@ const AppError = require('../utils/AppError');
 
 // Get all users with filtering and pagination
 exports.getAllUsers = catchAsync(async (req, res, next) => {
-  const { role, page = 1, limit = 50, search } = req.query;
+  const { role, page = 1, limit = 50, search, includeDeleted } = req.query;
 
   // Build query
   const query = {};
+
+  // Only exclude soft-deleted users if includeDeleted is not 'true'
+  if (includeDeleted !== 'true') {
+    query.active = { $ne: false };
+  }
+
   if (role) {
     query.role = role;
   }
@@ -263,6 +269,22 @@ exports.deleteUser = catchAsync(async (req, res, next) => {
   // Prevent deleting admin users
   if (user.role === 'admin') {
     return next(new AppError('Cannot delete admin users', 403));
+  }
+
+  // Delete associated data based on user role
+  if (user.role === 'student') {
+    // Delete all applications by this student
+    await JobApplication.deleteMany({ student: user._id });
+  } else if (user.role === 'client') {
+    // Find all jobs posted by this client
+    const clientJobs = await JobPost.find({ client: user._id });
+    const jobIds = clientJobs.map(job => job._id);
+
+    // Delete all applications for these jobs
+    await JobApplication.deleteMany({ jobPost: { $in: jobIds } });
+
+    // Delete all job posts by this client
+    await JobPost.deleteMany({ client: user._id });
   }
 
   // Soft delete by setting active to false
