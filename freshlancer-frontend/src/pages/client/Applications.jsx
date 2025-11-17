@@ -22,6 +22,8 @@ import {
   Briefcase,
   ChevronDown,
   ChevronUp,
+  User,
+  ExternalLink,
 } from 'lucide-react';
 
 const Applications = () => {

@@ -203,12 +203,6 @@ const Applications = () => {
           <div className="text-center py-12">
             <FileText className="w-16 h-16 mx-auto text-gray-400 mb-4" />
             <p className="text-gray-600 mb-4">You haven't applied to any jobs yet.</p>
-            <Button
-              variant="primary"
-              onClick={() => navigate('/student/jobs')}
-            >
-              Browse Available Jobs
-            </Button>
           </div>
         </Card>
       ) : (

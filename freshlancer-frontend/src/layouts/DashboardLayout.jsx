@@ -63,7 +63,7 @@ const DashboardLayout = () => {
         { name: 'My Applications', icon: FileText, path: '/student/applications' },
         // { name: 'My Contracts', icon: FileText, path: '/student/contracts' },
         { name: 'Subscription', icon: CreditCard, path: '/student/subscription' },
-        { name: 'Reviews', icon: Star, path: '/student/reviews' },
+        // { name: 'Reviews', icon: Star, path: '/student/reviews' },
         ...baseItems.slice(1),
       ];
     }
@@ -73,10 +73,10 @@ const DashboardLayout = () => {
         ...baseItems.slice(0, 1),
         { name: 'My Jobs', icon: Briefcase, path: '/client/jobs' },
         { name: 'Applications', icon: FileText, path: '/client/applications' },
-        { name: 'My Contracts', icon: FileText, path: '/client/contracts' },
+        // { name: 'My Contracts', icon: FileText, path: '/client/contracts' },
         { name: 'Packages', icon: CreditCard, path: '/client/packages' },
-        { name: 'Reviews', icon: Star, path: '/client/reviews' },
-        { name: 'Transactions', icon: DollarSign, path: '/client/transactions' },
+        // { name: 'Reviews', icon: Star, path: '/client/reviews' },
+        // { name: 'Transactions', icon: DollarSign, path: '/client/transactions' },
         ...baseItems.slice(1),
       ];
     }
@@ -90,7 +90,7 @@ const DashboardLayout = () => {
         // { name: 'Verifications', icon: Shield, path: '/admin/verifications' },
         // { name: 'Contracts', icon: FileText, path: '/admin/contracts' },
         // { name: 'Transactions', icon: DollarSign, path: '/admin/transactions' },
-        { name: 'Reviews', icon: Star, path: '/admin/reviews' },
+        // { name: 'Reviews', icon: Star, path: '/admin/reviews' },
         ...baseItems.slice(1),
       ];
     }
