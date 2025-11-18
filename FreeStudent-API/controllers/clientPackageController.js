@@ -5,55 +5,25 @@ const Notification = require('../models/notificationModel');
 const catchAsync = require('../utils/catchAsync');
 const AppError = require('../utils/AppError');
 
-// Package configurations
+// Points package configurations
 const packageConfigs = {
   basic: {
-    name: 'Basic Package',
+    name: '50 Points',
     pointsTotal: 50,
-    profileViewsPerJob: 3,
     price: 29.99,
-    validityDays: 30,
-    features: {
-      unlimitedJobPosts: false,
-      featuredJobPosts: 0,
-      priorityListing: false,
-      advancedFilters: false,
-      bulkInvites: false,
-      dedicatedSupport: false,
-      analyticsAccess: false,
-    },
+    description: 'Perfect for small projects',
   },
   professional: {
-    name: 'Professional Package',
+    name: '150 Points',
     pointsTotal: 150,
-    profileViewsPerJob: 10,
     price: 79.99,
-    validityDays: 30,
-    features: {
-      unlimitedJobPosts: true,
-      featuredJobPosts: 2,
-      priorityListing: true,
-      advancedFilters: true,
-      bulkInvites: true,
-      dedicatedSupport: false,
-      analyticsAccess: true,
-    },
+    description: 'Most popular choice - 12% savings',
   },
   enterprise: {
-    name: 'Enterprise Package',
+    name: '500 Points',
     pointsTotal: 500,
-    profileViewsPerJob: 50,
     price: 249.99,
-    validityDays: 30,
-    features: {
-      unlimitedJobPosts: true,
-      featuredJobPosts: 10,
-      priorityListing: true,
-      advancedFilters: true,
-      bulkInvites: true,
-      dedicatedSupport: true,
-      analyticsAccess: true,
-    },
+    description: 'Best value for large teams - 17% savings',
   },
 };
 
@@ -81,20 +51,17 @@ exports.purchasePackage = catchAsync(async (req, res, next) => {
 
   const config = packageConfigs[packageType];
 
-  // Create package
+  // Create package (points purchase)
   const clientPackage = await ClientPackage.create({
     client: req.user._id,
     packageType,
     packageName: config.name,
     pointsTotal: config.pointsTotal,
     pointsRemaining: config.pointsTotal,
-    profileViewsPerJob: config.profileViewsPerJob,
     price: {
       amount: config.price,
       currency: 'USD',
     },
-    validityDays: config.validityDays,
-    features: config.features,
     paymentMethod: paymentMethod || 'credit_card',
     paymentStatus: 'pending',
   });
@@ -122,15 +89,21 @@ exports.purchasePackage = catchAsync(async (req, res, next) => {
   clientPackage.activationDate = Date.now();
   await clientPackage.save();
 
+  // Update user's points and current package
+  const user = await User.findById(req.user._id);
+  user.clientProfile.pointsRemaining = (user.clientProfile.pointsRemaining || 0) + config.pointsTotal;
+  user.clientProfile.currentPackage = clientPackage._id;
+  await user.save({ validateBeforeSave: false });
+
   // Create notification
   await Notification.create({
     user: req.user._id,
     type: 'system_announcement',
-    title: 'Package Purchase Initiated',
-    message: `Your ${config.name} purchase is being processed.`,
+    title: 'Points Added Successfully',
+    message: `${config.pointsTotal} points have been added to your account! You now have ${user.clientProfile.pointsRemaining} points available. Points never expire.`,
     relatedId: clientPackage._id,
     relatedType: 'ClientPackage',
-    icon: 'info',
+    icon: 'success',
   });
 
   res.status(201).json({
@@ -138,6 +111,7 @@ exports.purchasePackage = catchAsync(async (req, res, next) => {
     data: {
       package: clientPackage,
       transaction,
+      pointsRemaining: user.clientProfile.pointsRemaining,
     },
   });
 });

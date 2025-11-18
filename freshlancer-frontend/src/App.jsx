@@ -35,6 +35,7 @@ import ClientNotifications from './pages/client/Notifications';
 import ClientProfile from './pages/client/Profile';
 import ClientReviews from './pages/client/Reviews';
 import ClientTransactions from './pages/client/Transactions';
+import StudentProfileView from './pages/client/StudentProfileView';
 
 // Admin pages
 import AdminDashboard from './pages/admin/Dashboard';
@@ -93,6 +94,7 @@ function App() {
         <Route path="jobs/:id" element={<ClientJobDetails />} />
         <Route path="jobs/:id/edit" element={<ClientJobForm />} />
         <Route path="applications" element={<ClientApplications />} />
+        <Route path="students/:studentId" element={<StudentProfileView />} />
         <Route path="contracts" element={<ClientContracts />} />
         <Route path="packages" element={<ClientPackages />} />
         <Route path="messages" element={<ClientMessages />} />

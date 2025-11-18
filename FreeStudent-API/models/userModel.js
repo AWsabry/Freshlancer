@@ -420,6 +420,14 @@ const userSchema = new mongoose.Schema({
         return date;
       },
     },
+
+    // Track unlocked students
+    unlockedStudents: [
+      {
+        type: mongoose.Schema.ObjectId,
+        ref: 'User',
+      },
+    ],
   },
 
   // Platform metrics and activity

@@ -49,14 +49,17 @@ const Packages = () => {
     },
   });
 
-  const handlePurchase = (packageType, price) => {
-    const confirmed = confirm(`Purchase ${packageType} package for $${price}?`);
+  const handlePurchase = (packageType, price, points) => {
+    const newBalance = (balance?.pointsRemaining || 0) + points;
+    const confirmed = confirm(
+      `Buy ${points} points for $${price}?\n\nYour balance will be: ${newBalance} points`
+    );
     if (confirmed) {
-      // In production, integrate with payment gateway
+      // For development: Payment is automatically completed by backend
       purchaseMutation.mutate({
         packageType,
         paymentData: {
-          paymentMethod: 'stripe',
+          paymentMethod: 'credit_card',
           amount: price,
         },
       });
@@ -67,55 +70,39 @@ const Packages = () => {
     return <Loading text="Loading packages..." />;
   }
 
-  const packages = [
+  const pointsPackages = [
     {
-      name: 'Basic',
+      name: '50 Points',
       type: 'basic',
       price: 29.99,
       points: 50,
-      profileViews: 3,
       icon: Eye,
       color: 'blue',
-      features: [
-        '50 points total',
-        'View up to 3 profiles per job',
-        'Valid for 30 days',
-        'Email support',
-      ],
+      description: 'Perfect for small projects',
+      pricePerPoint: '0.60',
     },
     {
-      name: 'Professional',
+      name: '150 Points',
       type: 'professional',
       price: 79.99,
       points: 150,
-      profileViews: 10,
       icon: Zap,
       color: 'primary',
       popular: true,
-      features: [
-        '150 points total',
-        'View up to 10 profiles per job',
-        'Valid for 30 days',
-        'Priority support',
-        'Advanced search filters',
-      ],
+      description: 'Most popular choice',
+      pricePerPoint: '0.53',
+      savings: '12% savings',
     },
     {
-      name: 'Enterprise',
+      name: '500 Points',
       type: 'enterprise',
       price: 249.99,
       points: 500,
-      profileViews: 50,
       icon: TrendingUp,
       color: 'purple',
-      features: [
-        '500 points total',
-        'View up to 50 profiles per job',
-        'Valid for 30 days',
-        'Dedicated account manager',
-        'Advanced analytics',
-        'Priority job listing',
-      ],
+      description: 'Best value for large teams',
+      pricePerPoint: '0.50',
+      savings: '17% savings',
     },
   ];
 
@@ -125,142 +112,146 @@ const Packages = () => {
   return (
     <div className="space-y-6">
       {/* Current Balance */}
-      {active && (
-        <Card title="Current Package">
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-            <div className="text-center p-4 bg-primary-50 rounded-lg">
-              <p className="text-sm text-gray-600 mb-1">Available Points</p>
-              <p className="text-3xl font-bold text-primary-600">
-                {balance?.pointsRemaining || 0}
-              </p>
-            </div>
-            <div className="text-center p-4 bg-green-50 rounded-lg">
-              <p className="text-sm text-gray-600 mb-1">Profiles Unlocked</p>
-              <p className="text-3xl font-bold text-green-600">
-                {active.profilesUnlocked || 0}
-              </p>
-            </div>
-            <div className="text-center p-4 bg-blue-50 rounded-lg">
-              <p className="text-sm text-gray-600 mb-1">Expiry Date</p>
-              <p className="text-lg font-bold text-blue-600">
-                {new Date(active.expiryDate).toLocaleDateString()}
-              </p>
-            </div>
+      <Card>
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+          <div className="text-center p-6 bg-gradient-to-br from-primary-50 to-primary-100 rounded-lg border border-primary-200">
+            <p className="text-sm text-primary-600 font-medium mb-2">Available Points</p>
+            <p className="text-5xl font-bold text-primary-700">
+              {balance?.pointsRemaining || 0}
+            </p>
+            <p className="text-xs text-primary-600 mt-2">Never expire</p>
           </div>
-          {balance?.pointsRemaining < 20 && (
-            <Alert
-              type="warning"
-              message="You're running low on points. Purchase a new package to continue unlocking profiles."
-              className="mt-4"
-            />
-          )}
-        </Card>
-      )}
+          <div className="text-center p-6 bg-gradient-to-br from-green-50 to-green-100 rounded-lg border border-green-200">
+            <p className="text-sm text-green-600 font-medium mb-2">Profiles Unlocked</p>
+            <p className="text-5xl font-bold text-green-700">
+              {active?.profilesUnlocked || 0}
+            </p>
+            <p className="text-xs text-green-600 mt-2">All time</p>
+          </div>
+          <div className="text-center p-6 bg-gradient-to-br from-blue-50 to-blue-100 rounded-lg border border-blue-200">
+            <p className="text-sm text-blue-600 font-medium mb-2">Points Used</p>
+            <p className="text-5xl font-bold text-blue-700">
+              {balance?.pointsUsed || 0}
+            </p>
+            <p className="text-xs text-blue-600 mt-2">Total spent</p>
+          </div>
+        </div>
+        {balance?.pointsRemaining < 20 && (
+          <Alert
+            type="warning"
+            message="You're running low on points. Purchase more points below to continue unlocking student profiles."
+            className="mt-4"
+          />
+        )}
+      </Card>
 
-      {/* Package Info */}
+      {/* How Points Work */}
       <Alert
         type="info"
         title="How Points Work"
-        message="Each student profile unlock costs 10 points. Purchase a package to get points and start viewing full student profiles."
+        message="Each student profile unlock costs 10 points. Points never expire and accumulate in your account. Buy more points anytime to keep unlocking student profiles. (Payment is automatically processed for development)"
       />
 
-      {/* Available Packages */}
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-        {packages.map((pkg) => {
-          const Icon = pkg.icon;
-          return (
-            <Card
-              key={pkg.type}
-              className={`relative ${
-                pkg.popular ? 'border-2 border-primary-500 shadow-lg' : ''
-              }`}
-            >
-              {pkg.popular && (
-                <div className="absolute top-0 right-0 m-4">
-                  <Badge variant="success">
-                    <Star className="w-4 h-4 mr-1 inline" />
-                    Popular
-                  </Badge>
-                </div>
-              )}
-
-              <div className="text-center mb-6">
-                <div className={`inline-flex p-4 rounded-full bg-${pkg.color}-100 mb-4`}>
-                  <Icon className={`w-8 h-8 text-${pkg.color}-600`} />
-                </div>
-                <h3 className="text-2xl font-bold mb-2">{pkg.name}</h3>
-                <div className="mb-2">
-                  <span className="text-4xl font-bold">${pkg.price}</span>
-                  <span className="text-gray-500">/package</span>
-                </div>
-                <p className="text-gray-600">
-                  {pkg.points} points • {pkg.profileViews} views/job
-                </p>
-              </div>
-
-              <ul className="space-y-3 mb-6">
-                {pkg.features.map((feature, index) => (
-                  <li key={index} className="flex items-start">
-                    <CheckCircle className="w-5 h-5 text-green-500 mr-2 flex-shrink-0 mt-0.5" />
-                    <span className="text-gray-700">{feature}</span>
-                  </li>
-                ))}
-              </ul>
-
-              <Button
-                variant={pkg.popular ? 'primary' : 'outline'}
-                className="w-full"
-                onClick={() => handlePurchase(pkg.type, pkg.price)}
-                loading={purchaseMutation.isPending}
+      {/* Points Packages */}
+      <div>
+        <h2 className="text-2xl font-bold text-gray-900 mb-4">Buy Points</h2>
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+          {pointsPackages.map((pkg) => {
+            const Icon = pkg.icon;
+            return (
+              <Card
+                key={pkg.type}
+                className={`relative ${
+                  pkg.popular ? 'border-2 border-primary-500 shadow-lg transform scale-105' : ''
+                }`}
               >
-                <CreditCard className="w-5 h-5 mr-2" />
-                Purchase Package
-              </Button>
-            </Card>
-          );
-        })}
+                {pkg.popular && (
+                  <div className="absolute -top-3 left-1/2 transform -translate-x-1/2">
+                    <Badge variant="success" className="px-4 py-1">
+                      <Star className="w-4 h-4 mr-1 inline" />
+                      Most Popular
+                    </Badge>
+                  </div>
+                )}
+
+                <div className="text-center mb-6 mt-2">
+                  <div className={`inline-flex p-4 rounded-full bg-${pkg.color}-100 mb-4`}>
+                    <Icon className={`w-8 h-8 text-${pkg.color}-600`} />
+                  </div>
+                  <h3 className="text-2xl font-bold mb-2">{pkg.name}</h3>
+                  <div className="mb-2">
+                    <span className="text-4xl font-bold text-gray-900">${pkg.price}</span>
+                  </div>
+                  <p className="text-primary-600 font-medium text-lg mb-1">
+                    {pkg.points} Points
+                  </p>
+                  <p className="text-gray-500 text-sm">${pkg.pricePerPoint} per point</p>
+                  {pkg.savings && (
+                    <Badge variant="success" className="mt-2">
+                      {pkg.savings}
+                    </Badge>
+                  )}
+                </div>
+
+                <div className="mb-6 p-4 bg-gray-50 rounded-lg">
+                  <p className="text-center text-gray-700">{pkg.description}</p>
+                  <div className="mt-3 text-center text-sm text-gray-600">
+                    <p>✓ Unlock up to {pkg.points / 10} student profiles</p>
+                    <p>✓ Points never expire</p>
+                    <p>✓ Add to existing balance</p>
+                  </div>
+                </div>
+
+                <Button
+                  variant={pkg.popular ? 'primary' : 'outline'}
+                  className="w-full"
+                  onClick={() => handlePurchase(pkg.type, pkg.price, pkg.points)}
+                  loading={purchaseMutation.isPending}
+                >
+                  <CreditCard className="w-5 h-5 mr-2" />
+                  Buy {pkg.points} Points
+                </Button>
+              </Card>
+            );
+          })}
+        </div>
       </div>
 
-      {/* Package History */}
+      {/* Purchase History */}
       {myPackages?.data?.packages?.length > 0 && (
         <Card title="Purchase History">
-          <div className="space-y-4">
+          <div className="space-y-3">
             {myPackages.data.packages.map((pkg) => (
               <div
                 key={pkg._id}
-                className="flex items-center justify-between p-4 bg-gray-50 rounded-lg"
+                className="flex items-center justify-between p-4 bg-gray-50 rounded-lg hover:bg-gray-100 transition"
               >
                 <div className="flex-1">
-                  <div className="flex items-center gap-2 mb-1">
-                    <h4 className="font-semibold text-gray-900 capitalize">
-                      {pkg.packageType} Package
+                  <div className="flex items-center gap-3 mb-2">
+                    <CreditCard className="w-5 h-5 text-primary-600" />
+                    <h4 className="font-bold text-gray-900">
+                      {pkg.pointsTotal} Points
                     </h4>
-                    <Badge
-                      variant={
-                        pkg.status === 'active' ? 'success' :
-                        pkg.status === 'expired' ? 'error' :
-                        pkg.status === 'exhausted' ? 'warning' : 'info'
-                      }
-                    >
-                      {pkg.status}
+                    <Badge variant="success">
+                      Purchased
                     </Badge>
                   </div>
-                  <div className="grid grid-cols-3 gap-4 mt-2 text-sm text-gray-600">
-                    <div>
-                      Points: {pkg.pointsUsed}/{pkg.pointsTotal}
+                  <div className="flex items-center gap-6 text-sm text-gray-600">
+                    <div className="flex items-center gap-1">
+                      <Calendar className="w-4 h-4" />
+                      <span>{new Date(pkg.createdAt).toLocaleDateString()}</span>
                     </div>
-                    <div>Profiles: {pkg.profilesUnlocked || 0}</div>
                     <div>
-                      Expires: {new Date(pkg.expiryDate).toLocaleDateString()}
+                      Added to balance
                     </div>
                   </div>
                 </div>
                 <div className="text-right">
-                  <p className="text-lg font-bold text-gray-900">
+                  <p className="text-2xl font-bold text-gray-900">
                     ${pkg.price?.amount || 0}
                   </p>
                   <p className="text-xs text-gray-500">
-                    {new Date(pkg.createdAt).toLocaleDateString()}
+                    {pkg.pointsTotal} points
                   </p>
                 </div>
               </div>

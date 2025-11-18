@@ -16,6 +16,7 @@ router.get('/viewed', authController.restrictTo('client'), profileViewController
 router.get('/shortlisted', authController.restrictTo('client'), profileViewController.getShortlistedProfiles);
 router.post('/shortlist', authController.restrictTo('client'), profileViewController.shortlistProfile);
 router.patch('/action', authController.restrictTo('client'), profileViewController.updateProfileAction);
+router.get('/student/:studentId', authController.restrictTo('client'), profileViewController.getStudentProfile);
 
 // Student routes
 router.get('/viewers', authController.restrictTo('student'), profileViewController.getMyProfileViewers);

@@ -428,16 +428,30 @@ const Applications = () => {
                   </div>
                 )}
 
-                <div className="flex gap-3 pt-4 border-t">
-                  <Button variant="secondary" onClick={() => setShowStudentModal(false)} className="flex-1">
-                    Close
+                <div className="flex flex-col gap-3 pt-4 border-t">
+                  {/* View Full Profile Button */}
+                  <Button
+                    variant="outline"
+                    onClick={() => navigate(`/client/students/${selectedApplication.student?._id}`)}
+                    className="w-full"
+                  >
+                    <User className="w-4 h-4 mr-2" />
+                    View Full Profile
+                    <ExternalLink className="w-3 h-3 ml-2" />
                   </Button>
-                  <Button variant="success" className="flex-1">
-                    Accept Application
-                  </Button>
-                  <Button variant="error" className="flex-1">
-                    Reject
-                  </Button>
+
+                  {/* Action Buttons */}
+                  <div className="flex gap-3">
+                    <Button variant="secondary" onClick={() => setShowStudentModal(false)} className="flex-1">
+                      Close
+                    </Button>
+                    <Button variant="success" className="flex-1">
+                      Accept Application
+                    </Button>
+                    <Button variant="error" className="flex-1">
+                      Reject
+                    </Button>
+                  </div>
                 </div>
               </>
             ) : (

@@ -60,6 +60,7 @@ const notificationSchema = new mongoose.Schema({
       'Subscription',
       'StudentVerification',
       'User',
+      'ClientPackage',
     ],
   },
   // Action URL for deep linking

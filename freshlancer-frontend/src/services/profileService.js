@@ -30,4 +30,9 @@ export const profileService = {
   getProfileViewStats: async () => {
     return api.get('/profiles/stats');
   },
+
+  // Get full student profile (for unlocked students)
+  getStudentProfile: async (studentId) => {
+    return api.get(`/profiles/student/${studentId}`);
+  },
 };

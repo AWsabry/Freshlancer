@@ -530,7 +530,31 @@ exports.unlockStudentContact = catchAsync(async (req, res, next) => {
   client.clientProfile.pointsRemaining -= pointsCost;
   client.clientProfile.pointsUsed += pointsCost;
 
+  // Add student to unlocked students list if not already there
+  if (!client.clientProfile.unlockedStudents) {
+    client.clientProfile.unlockedStudents = [];
+  }
+
+  const studentId = application.student._id || application.student;
+  if (!client.clientProfile.unlockedStudents.some(id => id.toString() === studentId.toString())) {
+    client.clientProfile.unlockedStudents.push(studentId);
+  }
+
   await client.save({ validateBeforeSave: false });
+
+  // Also deduct from active package if exists
+  const ClientPackage = require('../models/clientPackageModel');
+  const activePackage = await ClientPackage.findOne({
+    client: req.user.id,
+    status: 'active',
+  });
+
+  if (activePackage) {
+    activePackage.pointsRemaining -= pointsCost;
+    activePackage.pointsUsed += pointsCost;
+    activePackage.profilesUnlocked = (activePackage.profilesUnlocked || 0) + 1;
+    await activePackage.save({ validateBeforeSave: false });
+  }
 
   // Mark application as unlocked
   application.contactUnlockedByClient = true;

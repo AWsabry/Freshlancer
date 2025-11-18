@@ -98,6 +98,57 @@ exports.unlockProfile = catchAsync(async (req, res, next) => {
   });
 });
 
+// Get student profile (for clients who have unlocked via application)
+exports.getStudentProfile = catchAsync(async (req, res, next) => {
+  if (req.user.role !== 'client') {
+    return next(new AppError('Only clients can view student profiles', 403));
+  }
+
+  const { studentId } = req.params;
+
+  // Get the student
+  const student = await User.findById(studentId);
+
+  if (!student || student.role !== 'student') {
+    return next(new AppError('Student not found', 404));
+  }
+
+  // Get client with unlocked students list
+  const client = await User.findById(req.user._id);
+
+  if (!client) {
+    return next(new AppError('Client not found', 404));
+  }
+
+  // Check if student is in client's unlocked students list
+  const unlockedStudents = client.clientProfile?.unlockedStudents || [];
+  const hasAccess = unlockedStudents.some(id => id.toString() === studentId);
+
+  if (!hasAccess) {
+    return next(new AppError('You must unlock this student\'s contact through an application first', 403));
+  }
+
+  // Return full student profile
+  res.status(200).json({
+    status: 'success',
+    data: {
+      student: {
+        _id: student._id,
+        name: student.name,
+        email: student.email,
+        photo: student.photo,
+        age: student.age,
+        gender: student.gender,
+        nationality: student.nationality,
+        phone: student.phone,
+        location: student.location,
+        studentProfile: student.studentProfile,
+        createdAt: student.createdAt,
+      },
+    },
+  });
+});
+
 // Get anonymized profile (free preview)
 exports.getAnonymizedProfile = catchAsync(async (req, res, next) => {
   const { studentId } = req.params;
