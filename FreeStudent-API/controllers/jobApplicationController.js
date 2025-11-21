@@ -94,8 +94,26 @@ exports.applyForJob = catchAsync(async (req, res, next) => {
 
   const application = await JobApplication.create(applicationData);
 
-  // Increment monthly application usage
+  // Increment monthly application usage and add job to appliedJobs list
   student.studentProfile.applicationsUsedThisMonth = applicationsUsed + 1;
+
+  // Add job to appliedJobs list if not already there
+  const alreadyInList = student.studentProfile.appliedJobs?.some(
+    (job) => job.jobId.toString() === req.params.jobId
+  );
+
+  if (!alreadyInList) {
+    if (!student.studentProfile.appliedJobs) {
+      student.studentProfile.appliedJobs = [];
+    }
+    student.studentProfile.appliedJobs.push({
+      jobId: req.params.jobId,
+      title: jobPost.title,
+      appliedAt: Date.now(),
+      status: 'pending',
+    });
+  }
+
   await student.save({ validateBeforeSave: false });
 
   // Increment applicationsCount in JobPost

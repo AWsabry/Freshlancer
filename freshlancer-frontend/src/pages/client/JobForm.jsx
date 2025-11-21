@@ -314,7 +314,6 @@ const JobForm = () => {
           <Select
             label="Experience Level"
             options={[
-              { value: '', label: 'Select experience level' },
               { value: 'Beginner', label: 'Beginner' },
               { value: 'Intermediate', label: 'Intermediate' },
               { value: 'Advanced', label: 'Advanced' },
@@ -322,7 +321,7 @@ const JobForm = () => {
             error={errors.experienceLevel?.message}
             {...register('experienceLevel', { required: 'Experience level is required' })}
           />
-
+{/* 
           <Select
             label="Application Type"
             options={[
@@ -330,7 +329,7 @@ const JobForm = () => {
               { value: 'invite-only', label: 'Invite Only' },
             ]}
             {...register('applicationType')}
-          />
+          /> */}
 
           <div className="flex gap-3 pt-6 border-t">
             <Button

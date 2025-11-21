@@ -19,6 +19,7 @@ import {
   XCircle,
   AlertCircle,
   Eye,
+  Unlock,
 } from 'lucide-react';
 
 const ApplicationDetails = () => {
@@ -215,7 +216,7 @@ const ApplicationDetails = () => {
               {job.client && (
                 <span className="flex items-center gap-1">
                   <Briefcase className="w-5 h-5" />
-                  {job.client.clientProfile?.companyName || job.client.name}
+                  {job.client.clientProfile?.companyEmail || job.client.email}
                 </span>
               )}
               {job.location && (

@@ -27,7 +27,7 @@ const Jobs = () => {
       }),
   });
 
-  const jobs = data?.data?.data?.jobs || [];
+  const jobs = data?.data?.jobs || [];
   const totalPages = data?.data?.totalPages || 1;
 
   const handleSearch = (e) => {
@@ -41,11 +41,19 @@ const Jobs = () => {
   };
 
   const handleFilterChange = (filterType, value) => {
-    setSearchParams({
+    const params = {
       page: '1',
-      search: searchTerm,
-      [filterType]: value,
-    });
+      ...(search && { search }),
+      ...(status && filterType !== 'status' && { status }),
+      ...(category && filterType !== 'category' && { category }),
+    };
+
+    // Add the new filter value if it's not empty
+    if (value) {
+      params[filterType] = value;
+    }
+
+    setSearchParams(params);
   };
 
   const handlePageChange = (newPage) => {
@@ -77,20 +85,21 @@ const Jobs = () => {
     }
   };
 
-  const formatCurrency = (amount) => {
+  const formatCurrency = (amount, currency = 'USD') => {
     if (!amount) return 'N/A';
     return new Intl.NumberFormat('en-US', {
       style: 'currency',
-      currency: 'USD',
+      currency: currency,
     }).format(amount);
   };
 
   const formatBudgetRange = (budget) => {
     if (!budget || (!budget.min && !budget.max)) return 'N/A';
+    const currency = budget.currency || 'USD';
     if (budget.min && budget.max) {
-      return `${formatCurrency(budget.min)} - ${formatCurrency(budget.max)}`;
+      return `${formatCurrency(budget.min, currency)} - ${formatCurrency(budget.max, currency)}`;
     }
-    return budget.min ? formatCurrency(budget.min) : formatCurrency(budget.max);
+    return budget.min ? formatCurrency(budget.min, currency) : formatCurrency(budget.max, currency);
   };
 
   const formatDate = (date) => {

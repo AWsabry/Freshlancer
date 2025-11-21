@@ -23,6 +23,12 @@ const jobApplicationSchema = new mongoose.Schema({
     ],
     default: 'standard',
   },
+  // Optional proposal text for premium students
+  proposalText: {
+    type: String,
+    trim: true,
+    maxlength: [1000, 'Proposal text must be less than 1000 characters'],
+  },
   proposedBudget: {
     amount: {
       type: Number,

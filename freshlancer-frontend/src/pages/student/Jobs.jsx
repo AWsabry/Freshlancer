@@ -3,7 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import { useInfiniteQuery, useQuery } from '@tanstack/react-query';
 import { jobService } from '../../services/jobService';
 import { subscriptionService } from '../../services/subscriptionService';
-import { applicationService } from '../../services/applicationService';
+import { authService } from '../../services/authService';
 import Button from '../../components/common/Button';
 import Input from '../../components/common/Input';
 import Select from '../../components/common/Select';
@@ -35,19 +35,14 @@ const Jobs = () => {
     queryFn: () => subscriptionService.getMySubscription(),
   });
 
-  // Fetch student's applications
-  const { data: applicationsData } = useQuery({
-    queryKey: ['myApplications'],
-    queryFn: () => applicationService.getMyApplications(),
+  // Fetch current user with appliedJobs from profile
+  const { data: userData } = useQuery({
+    queryKey: ['currentUser'],
+    queryFn: () => authService.getMe(),
   });
 
-  const myApplications = applicationsData?.data?.data?.applications || [];
-  // Only consider non-withdrawn applications as "applied"
-  const activeApplications = myApplications.filter(app => app.status !== 'withdrawn');
-  const appliedJobIds = useMemo(
-    () => new Set(activeApplications.map((app) => app.jobPost?._id || app.jobPost)),
-    [activeApplications]
-  );
+  // Get applied jobs from user profile
+  const userAppliedJobs = userData?.data?.user?.studentProfile?.appliedJobs || [];
 
   // Check if student is on premium plan
   const subscription = subscriptionData?.data?.subscription;
@@ -78,21 +73,67 @@ const Jobs = () => {
 
   const allJobs = data?.pages.flatMap((page) => page.data.jobPosts) || [];
 
-  // Separate available jobs from applied jobs
-  const availableJobs = useMemo(
-    () => allJobs.filter((job) => !appliedJobIds.has(job._id)),
-    [allJobs, appliedJobIds]
+  // Fetch full details for applied jobs
+  const appliedJobIds = useMemo(
+    () => userAppliedJobs.map(job => job.jobId?.toString()).filter(Boolean),
+    [userAppliedJobs]
   );
 
-  const appliedJobs = useMemo(
-    () => activeApplications.map((app) => ({
-      ...app.jobPost,
-      applicationStatus: app.status,
-      applicationId: app._id,
-      appliedAt: app.createdAt,
-    })).filter((job) => job._id), // Filter out any null jobs
-    [activeApplications]
+  const { data: appliedJobsData } = useQuery({
+    queryKey: ['appliedJobs', appliedJobIds],
+    queryFn: async () => {
+      if (appliedJobIds.length === 0) return { data: { jobPosts: [] } };
+      // Fetch all applied jobs by their IDs
+      const promises = appliedJobIds.map(jobId =>
+        jobService.getJob(jobId).catch(() => null)
+      );
+      const results = await Promise.all(promises);
+      return {
+        data: {
+          jobPosts: results
+            .filter(result => result?.data?.jobPost)
+            .map(result => result.data.jobPost)
+        }
+      };
+    },
+    enabled: appliedJobIds.length > 0,
+  });
+
+  const appliedJobsFromAPI = appliedJobsData?.data?.jobPosts || [];
+
+  // Separate available jobs from applied jobs
+  const appliedJobIdsSet = useMemo(
+    () => new Set(userAppliedJobs.map((job) => job.jobId?.toString())),
+    [userAppliedJobs]
   );
+
+  const availableJobs = useMemo(
+    () => allJobs.filter((job) => !appliedJobIdsSet.has(job._id)),
+    [allJobs, appliedJobIdsSet]
+  );
+
+  // Build applied jobs array with application metadata
+  const appliedJobs = useMemo(() => {
+    // Create a map of applied jobs metadata from user profile
+    const appliedJobMetadata = new Map(
+      userAppliedJobs.map(job => [job.jobId?.toString(), job])
+    );
+
+    // Map full job data with application status
+    return appliedJobsFromAPI
+      .map((job) => {
+        const metadata = appliedJobMetadata.get(job._id);
+        if (metadata) {
+          return {
+            ...job,
+            applicationStatus: metadata.status,
+            appliedAt: metadata.appliedAt,
+          };
+        }
+        return null;
+      })
+      .filter(job => job !== null);
+  }, [appliedJobsFromAPI, userAppliedJobs]);
 
   const jobs = activeTab === 'available' ? availableJobs : appliedJobs;
 
@@ -270,7 +311,7 @@ const Jobs = () => {
                     <div className="flex items-center gap-4 text-sm text-gray-600">
                       <span className="flex items-center gap-1">
                         <Briefcase className="w-4 h-4" />
-                        {isPremium ? (job.client?.clientProfile?.companyName || job.client?.name) : 'Premium members only'}
+                        {isPremium ? (job.client?.clientProfile?.companyEmail || job.client?.email) : 'Premium members only'}
                       </span>
                       {job.location && (
                         <span className="flex items-center gap-1">
@@ -342,8 +383,8 @@ const Jobs = () => {
                   <div className="flex items-center gap-4">
               {isPremium ? (
                 <div className="flex items-center gap-1 text-lg font-semibold text-green-600">
-                  <DollarSign className="w-5 h-5" />
-                  {job.budget.currency} ${job.budget.min} - ${job.budget.max}
+                 
+                  {job.budget.currency} {job.budget.min} - {job.budget.max}
                 </div>
               ) : (
                 <Button
@@ -352,7 +393,7 @@ const Jobs = () => {
                   onClick={() => navigate('/student/subscription')}
                   className="flex items-center gap-1"
                 >
-                  <DollarSign className="w-4 h-4" />
+              
                   Subscribe to see budget
                 </Button>
               )}

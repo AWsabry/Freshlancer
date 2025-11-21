@@ -1,6 +1,8 @@
-import React from 'react';
+import React, { useState } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
+import { useNavigate } from 'react-router-dom';
 import { subscriptionService } from '../../services/subscriptionService';
+import { authService } from '../../services/authService';
 import Card from '../../components/common/Card';
 import Button from '../../components/common/Button';
 import Badge from '../../components/common/Badge';
@@ -10,16 +12,24 @@ import { CheckCircle, Star, Zap, CreditCard } from 'lucide-react';
 
 const Subscription = () => {
   const queryClient = useQueryClient();
+  const navigate = useNavigate();
+  const [selectedCurrency, setSelectedCurrency] = useState('USD');
 
   const { data, isLoading } = useQuery({
     queryKey: ['subscription'],
     queryFn: () => subscriptionService.getMySubscription(),
   });
 
-  // Fetch pricing based on user's currency
+  // Fetch current user data (including application counts)
+  const { data: userData, isLoading: loadingUser } = useQuery({
+    queryKey: ['currentUser'],
+    queryFn: () => authService.getMe(),
+  });
+
+  // Fetch pricing based on selected currency
   const { data: pricingData, isLoading: pricingLoading } = useQuery({
-    queryKey: ['subscriptionPricing'],
-    queryFn: () => subscriptionService.getPricing(),
+    queryKey: ['subscriptionPricing', selectedCurrency],
+    queryFn: () => subscriptionService.getPricing(selectedCurrency),
   });
 
   const upgradeMutation = useMutation({
@@ -41,35 +51,34 @@ const Subscription = () => {
     },
   });
 
-  if (isLoading || pricingLoading) {
+  if (isLoading || pricingLoading || loadingUser) {
     return <Loading text="Loading subscription..." />;
   }
 
   const subscription = data?.data?.subscription;
   const isPremium = subscription?.plan === 'premium';
-  const applicationsUsed = subscription?.applicationsUsedThisMonth || 0;
-  const applicationsLimit = subscription?.applicationLimitPerMonth || 10;
+
+  // Get application data from user profile
+  const studentProfile = userData?.data?.user?.studentProfile;
+  const applicationsUsed = studentProfile?.applicationsUsedThisMonth || 0;
+  const subscriptionTier = studentProfile?.subscriptionTier || 'free';
+  const applicationsLimit = subscriptionTier === 'premium' ? 100 : 10;
   const applicationsRemaining = applicationsLimit - applicationsUsed;
 
   // Get pricing data
-  const pricing = pricingData?.data?.data;
-  const currency = pricing?.currency || 'USD';
+  const pricing = pricingData?.data;
+  const currency = pricing?.currency || selectedCurrency;
   const monthlyPrice = pricing?.plans?.premium?.billingCycles?.monthly?.price?.amount || 9.99;
-  const quarterlyPrice = pricing?.plans?.premium?.billingCycles?.quarterly?.price?.amount || 24.99;
-  const yearlyPrice = pricing?.plans?.premium?.billingCycles?.yearly?.price?.amount || 79.99;
-  const quarterlySavings = pricing?.plans?.premium?.billingCycles?.quarterly?.savings || 0;
-  const yearlySavings = pricing?.plans?.premium?.billingCycles?.yearly?.savings || 0;
+  console.log('Pricing Data:', monthlyPrice);
 
   const handleUpgrade = () => {
-    // In production, integrate with payment gateway (Stripe/PayPal)
-    const confirmed = confirm(`Upgrade to Premium for ${currency} ${monthlyPrice.toFixed(2)}/month?`);
-    if (confirmed) {
-      upgradeMutation.mutate({
-        paymentMethod: 'stripe', // Placeholder
+    // Navigate to payment page with currency and amount
+    navigate('/student/payment', {
+      state: {
+        currency: selectedCurrency,
         amount: monthlyPrice,
-        currency,
-      });
-    }
+      },
+    });
   };
 
   const handleCancel = () => {
@@ -112,46 +121,40 @@ const Subscription = () => {
         </div>
       </Card>
 
-      {/* Usage Stats */}
-      <Card title="Usage This Month">
-        <div className="space-y-4">
-          <div>
-            <div className="flex items-center justify-between mb-2">
-              <span className="text-sm font-medium text-gray-700">Applications Used</span>
-              <span className="text-sm text-gray-600">
-                {applicationsUsed} / {isPremium ? '∞' : applicationsLimit}
-              </span>
-            </div>
-            <div className="w-full bg-gray-200 rounded-full h-2">
-              <div
-                className={`h-2 rounded-full transition-all ${
-                  applicationsRemaining < 3 ? 'bg-red-500' : 'bg-primary-500'
-                }`}
-                style={{
-                  width: isPremium ? '50%' : `${(applicationsUsed / applicationsLimit) * 100}%`,
-                }}
-              />
-            </div>
-          </div>
 
-          {!isPremium && applicationsRemaining < 3 && (
-            <Alert
-              type="warning"
-              message={`You have only ${applicationsRemaining} application${applicationsRemaining !== 1 ? 's' : ''} remaining. Upgrade to Premium for 100 applications per month!`}
-            />
-          )}
-          {isPremium && applicationsRemaining < 10 && (
-            <Alert
-              type="warning"
-              message={`You have only ${applicationsRemaining} application${applicationsRemaining !== 1 ? 's' : ''} remaining this month.`}
-            />
-          )}
-        </div>
-      </Card>
 
       {/* Pricing Plans */}
       {!isPremium && (
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+        <>
+          {/* Currency Selection */}
+          <Card title="Select Currency">
+            <div className="flex justify-center">
+              <div className="inline-flex rounded-lg border border-gray-300 p-1 bg-gray-50">
+                <button
+                  onClick={() => setSelectedCurrency('USD')}
+                  className={`px-6 py-2 rounded-md font-medium transition-all ${
+                    selectedCurrency === 'USD'
+                      ? 'bg-primary-500 text-white shadow-md'
+                      : 'text-gray-700 hover:bg-gray-100'
+                  }`}
+                >
+                  USD ($)
+                </button>
+                <button
+                  onClick={() => setSelectedCurrency('EGP')}
+                  className={`px-6 py-2 rounded-md font-medium transition-all ${
+                    selectedCurrency === 'EGP'
+                      ? 'bg-primary-500 text-white shadow-md'
+                      : 'text-gray-700 hover:bg-gray-100'
+                  }`}
+                >
+                  EGP (E£)
+                </button>
+              </div>
+            </div>
+          </Card>
+
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
           {/* Free Plan */}
           <Card className="relative">
             <div className="absolute top-4 right-4">
@@ -188,18 +191,9 @@ const Subscription = () => {
             </div>
             <h3 className="text-2xl font-bold mb-2 text-primary-600">Premium</h3>
             <p className="text-4xl font-bold mb-4">
-              {currency} {monthlyPrice.toFixed(2)}<span className="text-lg text-gray-500">/month</span>
+              {currency} {monthlyPrice.toFixed(2)}
+              <span className="text-lg text-gray-500">/month</span>
             </p>
-            {quarterlySavings > 0 && (
-              <p className="text-sm text-green-600 mb-2">
-                Save {currency} {quarterlySavings.toFixed(2)} with quarterly plan ({currency} {quarterlyPrice.toFixed(2)}/3 months)
-              </p>
-            )}
-            {yearlySavings > 0 && (
-              <p className="text-sm text-green-600 mb-2">
-                Save {currency} {yearlySavings.toFixed(2)} with yearly plan ({currency} {yearlyPrice.toFixed(2)}/year)
-              </p>
-            )}
             <ul className="space-y-3 mb-6">
               <li className="flex items-start">
                 <CheckCircle className="w-5 h-5 text-green-500 mr-2 flex-shrink-0 mt-0.5" />
@@ -217,10 +211,10 @@ const Subscription = () => {
                 <CheckCircle className="w-5 h-5 text-green-500 mr-2 flex-shrink-0 mt-0.5" />
                 <span className="text-gray-700">Priority customer support</span>
               </li>
-              <li className="flex items-start">
+              {/* <li className="flex items-start">
                 <CheckCircle className="w-5 h-5 text-green-500 mr-2 flex-shrink-0 mt-0.5" />
                 <span className="text-gray-700">Advanced analytics</span>
-              </li>
+              </li> */}
             </ul>
             <Button
               variant="primary"
@@ -233,6 +227,7 @@ const Subscription = () => {
             </Button>
           </Card>
         </div>
+        </>
       )}
 
       {/* Cancel Subscription */}

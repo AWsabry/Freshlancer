@@ -17,6 +17,7 @@ import StudentApplications from './pages/student/Applications';
 import StudentApplicationDetails from './pages/student/ApplicationDetails';
 import StudentContracts from './pages/student/Contracts';
 import StudentSubscription from './pages/student/Subscription';
+import StudentPayment from './pages/student/Payment';
 import StudentMessages from './pages/student/Messages';
 import StudentNotifications from './pages/student/Notifications';
 import StudentProfile from './pages/student/Profile';
@@ -31,6 +32,7 @@ import ClientApplications from './pages/client/Applications';
 import JobApplicationsDetail from './pages/client/JobApplicationsDetail';
 import ClientContracts from './pages/client/Contracts';
 import ClientPackages from './pages/client/Packages';
+import ClientPayment from './pages/client/Payment';
 import ClientMessages from './pages/client/Messages';
 import ClientNotifications from './pages/client/Notifications';
 import ClientProfile from './pages/client/Profile';
@@ -74,6 +76,7 @@ function App() {
         <Route path="applications/:id" element={<StudentApplicationDetails />} />
         <Route path="contracts" element={<StudentContracts />} />
         <Route path="subscription" element={<StudentSubscription />} />
+        <Route path="payment" element={<StudentPayment />} />
         <Route path="messages" element={<StudentMessages />} />
         <Route path="notifications" element={<StudentNotifications />} />
         <Route path="profile" element={<StudentProfile />} />
@@ -99,6 +102,7 @@ function App() {
         <Route path="students/:studentId" element={<StudentProfileView />} />
         <Route path="contracts" element={<ClientContracts />} />
         <Route path="packages" element={<ClientPackages />} />
+        <Route path="payment" element={<ClientPayment />} />
         <Route path="messages" element={<ClientMessages />} />
         <Route path="notifications" element={<ClientNotifications />} />
         <Route path="profile" element={<ClientProfile />} />

@@ -284,6 +284,26 @@ const userSchema = new mongoose.Schema({
         return date;
       },
     },
+
+    // Applied jobs tracking
+    appliedJobs: [
+      {
+        jobId: {
+          type: mongoose.Schema.ObjectId,
+          ref: 'JobPost',
+        },
+        title: String,
+        appliedAt: {
+          type: Date,
+          default: Date.now,
+        },
+        status: {
+          type: String,
+          enum: ['pending', 'accepted', 'rejected', 'withdrawn'],
+          default: 'pending',
+        },
+      },
+    ],
   },
 
   // Client-specific fields (only filled if role is 'client')

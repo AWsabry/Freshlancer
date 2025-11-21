@@ -2,6 +2,7 @@ import React, { useState, useMemo } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useQuery } from '@tanstack/react-query';
 import { applicationService } from '../../services/applicationService';
+import { authService } from '../../services/authService';
 import Button from '../../components/common/Button';
 import Card from '../../components/common/Card';
 import Badge from '../../components/common/Badge';
@@ -27,6 +28,13 @@ const Applications = () => {
     queryFn: () => applicationService.getMyApplications(),
   });
 
+  // Fetch current user to check premium status
+  const { data: userData } = useQuery({
+    queryKey: ['currentUser'],
+    queryFn: () => authService.getMe(),
+  });
+
+    
   const getStatusBadge = (status) => {
     const statusConfig = {
       pending: { variant: 'info', label: 'Pending Review' },
@@ -43,7 +51,13 @@ const Applications = () => {
     return <Loading text="Loading your applications..." />;
   }
 
+
+
   const allApplications = data?.data?.applications || [];
+
+  // Check if user is premium
+  const studentProfile = userData?.data?.user?.studentProfile;
+  const isPremium = studentProfile?.subscriptionTier === 'premium';
 
   // Separate active and withdrawn applications
   const activeApplications = useMemo(
@@ -71,12 +85,22 @@ const Applications = () => {
             {getStatusBadge(application.status)}
           </div>
 
-          {/* Company Info */}
-          {application.jobPost?.client && (
+          {/* Company Info - Only for Premium Users */}
+          {isPremium && application.jobPost?.client && (
             <p className="text-gray-600 mb-3 flex items-center gap-2">
               <Briefcase className="w-4 h-4" />
               {application.jobPost.client.clientProfile?.companyName ||
-               application.jobPost.client.name}
+               application.jobPost.client.email} 
+            </p>
+          )}
+
+          {/* Premium Upgrade Message for Free Users */}
+          {!isPremium && (
+            <p className="text-gray-600 mb-3 flex items-center gap-2">
+              <Briefcase className="w-4 h-4" />
+              <span className="text-sm text-gray-500 italic">
+                Upgrade to Premium to see Client Email 
+              </span>
             </p>
           )}
 
@@ -89,7 +113,7 @@ const Applications = () => {
                 <div>
                   <p className="text-xs text-gray-500">Your Bid</p>
                   <p className="font-semibold text-green-600">
-                    ${application.proposedBudget.amount}
+                    {application.proposedBudget.currency} {application.proposedBudget.amount}
                   </p>
                 </div>
               </div>
@@ -119,14 +143,27 @@ const Applications = () => {
               </div>
             )}
 
-            {/* Job Budget Range */}
-            {application.jobPost?.budget && (
+            {/* Job Budget Range - Only for Premium Users */}
+            {isPremium && application.jobPost?.budget && (
               <div className="flex items-center gap-2 text-gray-600">
                 <DollarSign className="w-5 h-5 text-gray-500" />
                 <div>
                   <p className="text-xs text-gray-500">Job Budget</p>
                   <p className="font-semibold text-sm">
-                    ${application.jobPost.budget.min} - ${application.jobPost.budget.max}
+                    {application.jobPost.budget.currency} ${application.jobPost.budget.min} - ${application.jobPost.budget.max}
+                  </p>
+                </div>
+              </div>
+            )}
+
+            {/* Premium Upgrade for Budget - Free Users */}
+            {!isPremium && (
+              <div className="flex items-center gap-2 text-gray-600">
+                <DollarSign className="w-5 h-5 text-gray-400" />
+                <div>
+                  <p className="text-xs text-gray-500">Job Budget</p>
+                  <p className="font-semibold text-sm text-gray-400 italic">
+                    Premium Only
                   </p>
                 </div>
               </div>

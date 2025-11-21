@@ -34,11 +34,11 @@ const DashboardLayout = () => {
     refetchInterval: 30000, // Refetch every 30 seconds
   });
 
-  // Get user data (including points) for clients
+  // Get user data (including points for clients and applications for students)
   const { data: userData } = useQuery({
     queryKey: ['currentUser'],
     queryFn: () => authService.getMe(),
-    enabled: user?.role === 'client',
+    enabled: user?.role === 'client' || user?.role === 'student',
     refetchInterval: 60000, // Refetch every 60 seconds
   });
 
@@ -207,6 +207,21 @@ const DashboardLayout = () => {
                 <p className="text-xs text-primary-600 font-medium">Points</p>
                 <p className="text-lg font-bold text-primary-700">
                   {userData.data.user.clientProfile.pointsRemaining}
+                </p>
+              </div>
+            </div>
+          )}
+
+          {/* Applications Display for Students */}
+          {user?.role === 'student' && userData?.data?.user?.studentProfile && (
+            <div className="flex items-center gap-2 bg-green-50 border border-green-200 rounded-lg px-4 py-2">
+              <Briefcase className="w-5 h-5 text-green-600" />
+              <div>
+                <p className="text-xs text-green-600 font-medium">Applications</p>
+                <p className="text-lg font-bold text-green-700">
+                  {userData.data.user.studentProfile.applicationsUsedThisMonth || 0} / {
+                    userData.data.user.studentProfile.subscriptionTier === 'premium' ? 100 : 10
+                  }
                 </p>
               </div>
             </div>

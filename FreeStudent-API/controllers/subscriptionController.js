@@ -110,7 +110,18 @@ exports.upgradeToPremium = catchAsync(async (req, res, next) => {
     return next(new AppError('You already have a premium subscription', 400));
   }
 
-  const premiumPrice = 19.99; // USD per month
+  // Get currency and billing cycle from request
+  const currency = req.body.currency || 'USD';
+  const billingCycle = req.body.billingCycle || 'monthly';
+
+  // Validate currency
+  const supportedCurrencies = ['USD', 'EGP', 'EUR', 'GBP', 'AED', 'SAR', 'QAR', 'KWD', 'BHD', 'OMR', 'JOD', 'LBP', 'ILS', 'TRY', 'ZAR', 'MAD', 'TND', 'DZD', 'NGN', 'KES', 'GHS', 'UGX', 'TZS', 'ETB', 'CHF', 'SEK', 'NOK', 'DKK', 'PLN', 'CZK', 'HUF', 'RON', 'BGN', 'HRK', 'RUB', 'UAH'];
+  if (!supportedCurrencies.includes(currency)) {
+    return next(new AppError(`Currency ${currency} is not supported`, 400));
+  }
+
+  // Get price for the selected currency
+  const premiumPrice = getPriceForCurrency(currency, billingCycle);
 
   // Create or update subscription
   if (subscription) {
@@ -119,9 +130,9 @@ exports.upgradeToPremium = catchAsync(async (req, res, next) => {
     subscription.applicationLimitPerMonth = 100; // Premium gets 100 applications per month
     subscription.price = {
       amount: premiumPrice,
-      currency: 'USD',
+      currency: currency,
     };
-    subscription.billingCycle = req.body.billingCycle || 'monthly';
+    subscription.billingCycle = billingCycle;
     subscription.autoRenew = req.body.autoRenew || true;
     subscription.paymentMethodId = req.body.paymentMethodId;
     subscription.nextBillingDate = new Date(
@@ -138,9 +149,9 @@ exports.upgradeToPremium = catchAsync(async (req, res, next) => {
       applicationLimitPerMonth: 100, // Premium gets 100 applications per month
       price: {
         amount: premiumPrice,
-        currency: 'USD',
+        currency: currency,
       },
-      billingCycle: req.body.billingCycle || 'monthly',
+      billingCycle: billingCycle,
       autoRenew: req.body.autoRenew || true,
       paymentMethodId: req.body.paymentMethodId,
       nextBillingDate: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000),
@@ -152,10 +163,10 @@ exports.upgradeToPremium = catchAsync(async (req, res, next) => {
     user: req.user._id,
     type: 'subscription_payment',
     amount: premiumPrice,
-    currency: 'USD',
+    currency: currency,
     status: 'pending',
     paymentMethod: req.body.paymentMethod || 'credit_card',
-    description: `Premium subscription - ${req.body.billingCycle || 'monthly'} billing`,
+    description: `Premium subscription - ${billingCycle} billing (${currency})`,
     relatedId: subscription._id,
     relatedType: 'Subscription',
   });
@@ -432,7 +443,7 @@ exports.getSubscriptionPricing = catchAsync(async (req, res, next) => {
           },
         },
         features: [
-          'Unlimited job applications',
+          '100 job applications per month',
           'Profile boost (appear higher in search)',
           'Advanced analytics dashboard',
           'Priority customer support',

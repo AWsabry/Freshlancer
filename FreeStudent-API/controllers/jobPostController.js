@@ -74,8 +74,23 @@ exports.getAllJobPosts = catchAsync(async (req, res, next) => {
     select: 'name email photo clientProfile',
   });
 
-  const jobPosts = await query;
+  let jobPosts = await query;
   const total = await JobPost.countDocuments(queryObject);
+
+  // For students, check which jobs they have applied to
+  if (req.user.role === 'student') {
+    const User = require('../models/userModel');
+    const student = await User.findById(req.user._id).select('studentProfile.appliedJobs');
+
+    const appliedJobIds = student?.studentProfile?.appliedJobs?.map((job) => job.jobId.toString()) || [];
+
+    // Add hasApplied field to each job
+    jobPosts = jobPosts.map((job) => {
+      const jobObj = job.toObject();
+      jobObj.hasApplied = appliedJobIds.includes(job._id.toString());
+      return jobObj;
+    });
+  }
 
   res.status(200).json({
     status: 'success',

@@ -5,6 +5,7 @@ import { subscriptionService } from '../../services/subscriptionService';
 import { applicationService } from '../../services/applicationService';
 import { contractService } from '../../services/contractService';
 import { verificationService } from '../../services/verificationService';
+import { authService } from '../../services/authService';
 import Card from '../../components/common/Card';
 import Badge from '../../components/common/Badge';
 import Button from '../../components/common/Button';
@@ -17,6 +18,12 @@ const StudentDashboard = () => {
   const { data: verificationStatus, isLoading: loadingVerification } = useQuery({
     queryKey: ['verificationStatus'],
     queryFn: () => verificationService.getVerificationStatus(),
+  });
+
+  // Fetch current user data (including application counts)
+  const { data: userData, isLoading: loadingUser } = useQuery({
+    queryKey: ['currentUser'],
+    queryFn: () => authService.getMe(),
   });
 
   // Fetch subscription info
@@ -37,14 +44,19 @@ const StudentDashboard = () => {
     queryFn: () => contractService.getMyContracts({ status: 'active' }),
   });
 
-  if (loadingVerification || loadingSubscription) {
+  if (loadingVerification || loadingSubscription || loadingUser) {
     return <Loading text="Loading dashboard..." />;
   }
 
   const isVerified = verificationStatus?.data?.isVerified;
   const subscriptionData = subscription?.data?.subscription;
-  console.log("DATA " + subscriptionData);
-  const applicationsRemaining = subscriptionData?.applicationLimitPerMonth - subscriptionData?.applicationsUsedThisMonth;
+  const studentProfile = userData?.data?.user?.studentProfile;
+
+  // Get application data from user profile
+  const applicationsUsedThisMonth = studentProfile?.applicationsUsedThisMonth || 0;
+  const subscriptionTier = studentProfile?.subscriptionTier || 'free';
+  const applicationLimitPerMonth = subscriptionTier === 'premium' ? 100 : 10;
+  const applicationsRemaining = applicationLimitPerMonth - applicationsUsedThisMonth;
   return (
     <div className="space-y-6">
       {/* Verification Alert */}
@@ -61,12 +73,12 @@ const StudentDashboard = () => {
         <Card className="border-l-4 border-primary-500">
           <div className="flex items-center justify-between">
             <div>
-              <p className="text-sm text-gray-600">Applications</p>
+              <p className="text-sm text-gray-600">Applications This Month</p>
               <p className="text-3xl font-bold text-gray-900">
-                {subscriptionData?.applicationsUsedThisMonth || 0}
+                {applicationsUsedThisMonth}
               </p>
               <p className="text-xs text-gray-500 mt-1">
-                of {subscriptionData?.applicationLimitPerMonth || 10} this month
+                of {applicationLimitPerMonth} this month
               </p>
             </div>
             <Briefcase className="w-12 h-12 text-primary-500" />
@@ -76,9 +88,12 @@ const StudentDashboard = () => {
         <Card className="border-l-4 border-green-500">
           <div className="flex items-center justify-between">
             <div>
-              <p className="text-sm text-gray-600">Active Contracts</p>
-              <p className="text-3xl font-bold text-gray-900">
-                {contracts?.data?.contracts?.length || 0}
+              <p className="text-sm text-gray-600">Applications Remaining</p>
+              <p className="text-3xl font-bold text-green-600">
+                {applicationsRemaining}
+              </p>
+              <p className="text-xs text-gray-500 mt-1">
+                {subscriptionTier === 'premium' ? 'Premium Plan' : 'Free Plan'}
               </p>
             </div>
             <FileText className="w-12 h-12 text-green-500" />
@@ -104,9 +119,9 @@ const StudentDashboard = () => {
         <Card className="border-l-4 border-purple-500">
           <div className="flex items-center justify-between">
             <div>
-              <p className="text-sm text-gray-600">Subscription</p>
+              <p className="text-sm text-gray-600">Package</p>
               <Badge variant="primary">
-                {subscriptionData?.plan === 'premium' ? 'Premium' : 'Free'}
+                {subscriptionTier === 'premium' ? 'Premium' : 'Free'}
               </Badge>
             </div>
             <DollarSign className="w-12 h-12 text-purple-500" />
@@ -140,7 +155,7 @@ const StudentDashboard = () => {
             </Button>
           </Link>
 
-          {subscriptionData?.plan === 'free' && applicationsRemaining < 3 && (
+          {subscriptionTier === 'free' && applicationsRemaining < 3 && (
             <Link to="/student/subscription">
               <Button variant="success" className="w-full">
                 Upgrade to Premium
