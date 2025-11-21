@@ -61,11 +61,11 @@ const subscriptionSchema = new mongoose.Schema({
       default: 'USD',
     },
   },
-  // Application limits for free tier
+  // Application limits
   applicationLimitPerMonth: {
     type: Number,
     default: function () {
-      return this.plan === 'free' ? 10 : 999999; // Unlimited for premium
+      return this.plan === 'free' ? 10 : 100; // Free: 10/month, Premium: 100/month
     },
   },
   applicationsUsedThisMonth: {
@@ -102,10 +102,10 @@ const subscriptionSchema = new mongoose.Schema({
   },
   // Premium features
   features: {
-    unlimitedApplications: {
+    increasedApplicationLimit: {
       type: Boolean,
       default: function () {
-        return this.plan === 'premium';
+        return this.plan === 'premium'; // Premium gets 100 apps/month vs 10 for free
       },
     },
     profileBoost: {
@@ -174,19 +174,16 @@ subscriptionSchema.methods.canApply = function () {
     return { allowed: false, reason: 'Subscription is not active' };
   }
 
-  if (this.plan === 'premium') {
-    return { allowed: true };
-  }
-
   // Check if limit reset is needed
   if (Date.now() > this.limitResetDate) {
     return { allowed: true, resetNeeded: true };
   }
 
+  // Check application limit (both free and premium have limits now)
   if (this.applicationsUsedThisMonth >= this.applicationLimitPerMonth) {
     return {
       allowed: false,
-      reason: `You have reached your monthly limit of ${this.applicationLimitPerMonth} applications`,
+      reason: `You have reached your monthly limit of ${this.applicationLimitPerMonth} applications. ${this.plan === 'free' ? 'Upgrade to Premium for 100 applications per month!' : 'Please wait until next month to apply again.'}`,
     };
   }
 

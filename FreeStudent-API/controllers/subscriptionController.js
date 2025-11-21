@@ -44,31 +44,52 @@ exports.checkApplicationLimit = catchAsync(async (req, res, next) => {
     return next(new AppError('Only students can check application limits', 403));
   }
 
-  const subscription = await Subscription.findOne({
-    student: req.user._id,
-    status: 'active',
-  });
+  const User = require('../models/userModel');
+  const student = await User.findById(req.user._id);
 
-  if (!subscription) {
-    return next(new AppError('No active subscription found', 404));
+  if (!student) {
+    return next(new AppError('Student not found', 404));
   }
 
-  // Check if reset is needed
-  if (Date.now() > subscription.limitResetDate) {
-    await subscription.resetMonthlyLimit();
+  // Check if reset date has passed and reset counter if needed
+  const now = new Date();
+  const resetDate = student.studentProfile?.applicationLimitResetDate;
+
+  if (resetDate && now >= resetDate) {
+    // Reset the counter and set new reset date (first day of next month)
+    const nextResetDate = new Date();
+    nextResetDate.setMonth(nextResetDate.getMonth() + 1);
+    nextResetDate.setDate(1);
+    nextResetDate.setHours(0, 0, 0, 0);
+
+    student.studentProfile.applicationsUsedThisMonth = 0;
+    student.studentProfile.applicationLimitResetDate = nextResetDate;
+    await student.save({ validateBeforeSave: false });
   }
 
-  const canApply = subscription.canApply();
+  // Get subscription tier and limits
+  const subscriptionTier = student.studentProfile?.subscriptionTier || 'free';
+  const applicationsUsed = student.studentProfile?.applicationsUsedThisMonth || 0;
+  const applicationResetDate = student.studentProfile?.applicationLimitResetDate;
+
+  let monthlyLimit;
+  if (subscriptionTier === 'premium') {
+    monthlyLimit = 100; // Premium: 100 applications per month
+  } else {
+    monthlyLimit = 10; // Free: 10 applications per month
+  }
+
+  const canApply = applicationsUsed < monthlyLimit;
 
   res.status(200).json({
     status: 'success',
     data: {
-      canApply: canApply.allowed,
-      reason: canApply.reason,
-      currentUsage: subscription.applicationsUsedThisMonth,
-      limit: subscription.applicationLimitPerMonth,
-      plan: subscription.plan,
-      resetDate: subscription.limitResetDate,
+      canApply,
+      reason: canApply ? null : `You have reached your monthly limit of ${monthlyLimit} applications`,
+      currentUsage: applicationsUsed,
+      limit: monthlyLimit,
+      plan: subscriptionTier,
+      resetDate: applicationResetDate,
     },
   });
 });
@@ -95,7 +116,7 @@ exports.upgradeToPremium = catchAsync(async (req, res, next) => {
   if (subscription) {
     // Upgrade existing subscription
     subscription.plan = 'premium';
-    subscription.applicationLimitPerMonth = 999999;
+    subscription.applicationLimitPerMonth = 100; // Premium gets 100 applications per month
     subscription.price = {
       amount: premiumPrice,
       currency: 'USD',
@@ -114,7 +135,7 @@ exports.upgradeToPremium = catchAsync(async (req, res, next) => {
       student: req.user._id,
       plan: 'premium',
       status: 'pending',
-      applicationLimitPerMonth: 999999,
+      applicationLimitPerMonth: 100, // Premium gets 100 applications per month
       price: {
         amount: premiumPrice,
         currency: 'USD',
@@ -153,7 +174,7 @@ exports.upgradeToPremium = catchAsync(async (req, res, next) => {
     user: req.user._id,
     type: 'subscription_renewed',
     title: 'Premium Subscription Activated',
-    message: 'Your premium subscription is now active! Enjoy unlimited job applications.',
+    message: 'Your premium subscription is now active! You can now apply to up to 100 jobs per month.',
     relatedId: subscription._id,
     relatedType: 'Subscription',
     priority: 'high',

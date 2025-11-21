@@ -28,6 +28,7 @@ import ClientJobs from './pages/client/Jobs';
 import ClientJobForm from './pages/client/JobForm';
 import ClientJobDetails from './pages/client/JobDetails';
 import ClientApplications from './pages/client/Applications';
+import JobApplicationsDetail from './pages/client/JobApplicationsDetail';
 import ClientContracts from './pages/client/Contracts';
 import ClientPackages from './pages/client/Packages';
 import ClientMessages from './pages/client/Messages';
@@ -94,6 +95,7 @@ function App() {
         <Route path="jobs/:id" element={<ClientJobDetails />} />
         <Route path="jobs/:id/edit" element={<ClientJobForm />} />
         <Route path="applications" element={<ClientApplications />} />
+        <Route path="jobs/:jobId/applications" element={<JobApplicationsDetail />} />
         <Route path="students/:studentId" element={<StudentProfileView />} />
         <Route path="contracts" element={<ClientContracts />} />
         <Route path="packages" element={<ClientPackages />} />

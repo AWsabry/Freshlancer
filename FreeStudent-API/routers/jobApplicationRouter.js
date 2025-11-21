@@ -30,6 +30,20 @@ router.patch(
   jobApplicationController.withdrawApplication
 );
 
+// Accept application (client only)
+router.patch(
+  '/:id/accept',
+  authController.restrictTo('client'),
+  jobApplicationController.acceptApplication
+);
+
+// Reject application (client only)
+router.patch(
+  '/:id/reject',
+  authController.restrictTo('client'),
+  jobApplicationController.rejectApplication
+);
+
 // Check if student has already applied to a specific job
 router.get(
   '/check/:jobId',
@@ -44,7 +58,7 @@ router.post(
   jobApplicationController.applyForJob
 );
 
-// Get applications for a specific job post (for clients)
+// Get applications for a specific job post with filters (for clients)
 router.get(
   '/job/:jobId',
   authController.restrictTo('client'),

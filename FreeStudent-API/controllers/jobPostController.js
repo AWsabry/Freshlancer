@@ -105,9 +105,10 @@ exports.getJobPost = catchAsync(async (req, res, next) => {
 
   // Students can view any open job post
   // Clients can only view their own job posts
+  const userId = req.user._id || req.user.id;
   if (
     req.user.role === 'client' &&
-    jobPost.client._id.toString() !== req.user.id
+    jobPost.client._id.toString() !== userId.toString()
   ) {
     return next(new AppError('You can only view your own job posts', 403));
   }

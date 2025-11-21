@@ -22,9 +22,9 @@ export const applicationService = {
     return api.get(`/applications/${id}`);
   },
 
-  // Get applications for my job (client)
-  getJobApplications: async (jobId) => {
-    return api.get(`/applications/job/${jobId}`);
+  // Get applications for my job (client) with filters
+  getJobApplications: async (jobId, params) => {
+    return api.get(`/applications/job/${jobId}`, { params });
   },
 
   // Withdraw application
@@ -39,7 +39,7 @@ export const applicationService = {
 
   // Client: Reject application
   rejectApplication: async (id, reason) => {
-    return api.patch(`/applications/${id}/reject`, { reason });
+    return api.patch(`/applications/${id}/reject`, reason ? { reason } : {});
   },
 
   // Client: Shortlist application

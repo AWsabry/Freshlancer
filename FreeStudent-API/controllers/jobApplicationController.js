@@ -12,6 +12,8 @@ exports.applyForJob = catchAsync(async (req, res, next) => {
     return next(new AppError('Only students can apply for jobs', 403));
   }
 
+  const userId = req.user._id || req.user.id;
+
   // Check if job post exists and is open
   const jobPost = await JobPost.findById(req.params.jobId);
   if (!jobPost) {
@@ -27,7 +29,7 @@ exports.applyForJob = catchAsync(async (req, res, next) => {
   // Check if student has already applied (excluding withdrawn applications)
   const existingApplication = await JobApplication.findOne({
     jobPost: req.params.jobId,
-    student: req.user.id,
+    student: userId,
     status: { $ne: 'withdrawn' }, // Exclude withdrawn applications
   });
 
@@ -35,14 +37,73 @@ exports.applyForJob = catchAsync(async (req, res, next) => {
     return next(new AppError('You have already applied for this job', 400));
   }
 
+  // Get student user to check and update monthly application usage
+  const User = require('../models/userModel');
+  const student = await User.findById(userId);
+
+  if (!student) {
+    return next(new AppError('Student not found', 404));
+  }
+
+  // Check if reset date has passed and reset counter if needed
+  const now = new Date();
+  const resetDate = student.studentProfile?.applicationLimitResetDate;
+
+  if (resetDate && now >= resetDate) {
+    // Reset the counter and set new reset date (first day of next month)
+    const nextResetDate = new Date();
+    nextResetDate.setMonth(nextResetDate.getMonth() + 1);
+    nextResetDate.setDate(1);
+    nextResetDate.setHours(0, 0, 0, 0);
+
+    student.studentProfile.applicationsUsedThisMonth = 0;
+    student.studentProfile.applicationLimitResetDate = nextResetDate;
+    await student.save({ validateBeforeSave: false });
+  }
+
+  // Check application limits based on subscription tier
+  const subscriptionTier = student.studentProfile?.subscriptionTier || 'free';
+  const applicationsUsed = student.studentProfile?.applicationsUsedThisMonth || 0;
+
+  let monthlyLimit;
+  if (subscriptionTier === 'premium') {
+    monthlyLimit = 100; // Premium: 100 applications per month
+  } else {
+    monthlyLimit = 10; // Free: 10 applications per month
+  }
+
+  if (applicationsUsed >= monthlyLimit) {
+    return next(
+      new AppError(
+        `You have reached your monthly application limit of ${monthlyLimit}. ${
+          subscriptionTier === 'free'
+            ? 'Upgrade to Premium to get 100 applications per month.'
+            : 'Your limit will reset on the first day of next month.'
+        }`,
+        403
+      )
+    );
+  }
+
   // Create the application
   const applicationData = {
     ...req.body,
     jobPost: req.params.jobId,
-    student: req.user.id,
+    student: userId,
   };
 
   const application = await JobApplication.create(applicationData);
+
+  // Increment monthly application usage
+  student.studentProfile.applicationsUsedThisMonth = applicationsUsed + 1;
+  await student.save({ validateBeforeSave: false });
+
+  // Increment applicationsCount in JobPost
+  await JobPost.findByIdAndUpdate(
+    req.params.jobId,
+    { $inc: { applicationsCount: 1 } },
+    { new: true }
+  );
 
   // Send notification email to client
   try {
@@ -75,12 +136,14 @@ exports.applyForJob = catchAsync(async (req, res, next) => {
 exports.getMyApplications = catchAsync(async (req, res, next) => {
   let query = {};
 
+  const userId = req.user._id || req.user.id;
+
   if (req.user.role === 'student') {
     // Students see their own applications
-    query.student = req.user.id;
+    query.student = userId;
   } else if (req.user.role === 'client') {
     // Clients see applications for their job posts
-    const myJobPosts = await JobPost.find({ client: req.user.id }).select(
+    const myJobPosts = await JobPost.find({ client: userId }).select(
       '_id'
     );
     const jobPostIds = myJobPosts.map((job) => job._id);
@@ -148,9 +211,11 @@ exports.getApplication = catchAsync(async (req, res, next) => {
     return next(new AppError('Application not found', 404));
   }
 
+  const userId = req.user._id || req.user.id;
+
   // Check permissions
-  const isOwner = application.student._id.toString() === req.user.id;
-  const isJobOwner = application.jobPost.client._id.toString() === req.user.id;
+  const isOwner = application.student._id.toString() === userId.toString();
+  const isJobOwner = application.jobPost.client._id.toString() === userId.toString();
 
   if (!isOwner && !isJobOwner) {
     return next(
@@ -204,8 +269,10 @@ exports.updateApplicationStatus = catchAsync(async (req, res, next) => {
     return next(new AppError('Application not found', 404));
   }
 
+  const userId = req.user._id || req.user.id;
+
   // Check if client owns the job post
-  if (application.jobPost.client._id.toString() !== req.user.id) {
+  if (application.jobPost.client._id.toString() !== userId.toString()) {
     return next(
       new AppError('You can only update applications for your job posts', 403)
     );
@@ -260,6 +327,113 @@ exports.updateApplicationStatus = catchAsync(async (req, res, next) => {
   });
 });
 
+// Accept application (only clients)
+exports.acceptApplication = catchAsync(async (req, res, next) => {
+  if (req.user.role !== 'client') {
+    return next(new AppError('Only clients can accept applications', 403));
+  }
+
+  const application = await JobApplication.findById(req.params.id).populate([
+    { path: 'student', select: 'name email' },
+    { path: 'jobPost', select: 'title client' },
+  ]);
+
+  if (!application) {
+    return next(new AppError('Application not found', 404));
+  }
+
+  const userId = req.user._id || req.user.id;
+
+  // Check if client owns the job post
+  const jobClientId = application.jobPost.client._id
+    ? application.jobPost.client._id.toString()
+    : application.jobPost.client.toString();
+
+  if (jobClientId !== userId.toString()) {
+    return next(new AppError('You can only accept applications for your own jobs', 403));
+  }
+
+  // Update application status
+  application.status = 'accepted';
+  application.acceptedAt = Date.now();
+  await application.save();
+
+  // Create notification for student
+  const Notification = require('../models/notificationModel');
+  await Notification.create({
+    user: application.student._id,
+    type: 'application_status',
+    title: 'Application Accepted!',
+    message: `Congratulations! Your application for "${application.jobPost.title}" has been accepted. The client can now contact you to discuss the project. This is not a final approval - please wait for the client to reach out.`,
+    relatedId: application._id,
+    relatedType: 'JobApplication',
+    icon: 'success',
+  });
+
+  res.status(200).json({
+    status: 'success',
+    data: {
+      application,
+    },
+  });
+});
+
+// Reject application (only clients)
+exports.rejectApplication = catchAsync(async (req, res, next) => {
+  if (req.user.role !== 'client') {
+    return next(new AppError('Only clients can reject applications', 403));
+  }
+
+  const { reason } = req.body;
+
+  const application = await JobApplication.findById(req.params.id).populate([
+    { path: 'student', select: 'name email' },
+    { path: 'jobPost', select: 'title client' },
+  ]);
+
+  if (!application) {
+    return next(new AppError('Application not found', 404));
+  }
+
+  const userId = req.user._id || req.user.id;
+
+  // Check if client owns the job post
+  const jobClientId = application.jobPost.client._id
+    ? application.jobPost.client._id.toString()
+    : application.jobPost.client.toString();
+
+  if (jobClientId !== userId.toString()) {
+    return next(new AppError('You can only reject applications for your own jobs', 403));
+  }
+
+  // Update application status
+  application.status = 'rejected';
+  application.rejectedAt = Date.now();
+  if (reason) {
+    application.rejectionReason = reason;
+  }
+  await application.save();
+
+  // Create notification for student
+  const Notification = require('../models/notificationModel');
+  await Notification.create({
+    user: application.student._id,
+    type: 'application_status',
+    title: 'Application Update',
+    message: `Your application for "${application.jobPost.title}" was not selected at this time.${reason ? ` Reason: ${reason}` : ''}`,
+    relatedId: application._id,
+    relatedType: 'JobApplication',
+    icon: 'info',
+  });
+
+  res.status(200).json({
+    status: 'success',
+    data: {
+      application,
+    },
+  });
+});
+
 // Withdraw application (only students)
 exports.withdrawApplication = catchAsync(async (req, res, next) => {
   const { reason } = req.body;
@@ -276,8 +450,10 @@ exports.withdrawApplication = catchAsync(async (req, res, next) => {
     return next(new AppError('Application not found', 404));
   }
 
+  const userId = req.user._id || req.user.id;
+
   // Check if student owns the application
-  if (application.student._id.toString() !== req.user.id) {
+  if (application.student._id.toString() !== userId.toString()) {
     return next(
       new AppError('You can only withdraw your own applications', 403)
     );
@@ -303,6 +479,13 @@ exports.withdrawApplication = catchAsync(async (req, res, next) => {
     { new: true, runValidators: true }
   );
 
+  // Decrement applicationsCount in JobPost
+  await JobPost.findByIdAndUpdate(
+    application.jobPost,
+    { $inc: { applicationsCount: -1 } },
+    { new: true }
+  );
+
   res.status(200).json({
     status: 'success',
     message: 'Application withdrawn successfully',
@@ -320,14 +503,25 @@ exports.deleteApplication = catchAsync(async (req, res, next) => {
     return next(new AppError('Application not found', 404));
   }
 
+  const userId = req.user._id || req.user.id;
+
   // Check if student owns the application
-  if (application.student._id.toString() !== req.user.id) {
+  if (application.student._id.toString() !== userId.toString()) {
     return next(new AppError('You can only delete your own applications', 403));
   }
 
   // Check if application can be deleted
   if (application.status === 'accepted') {
     return next(new AppError('Cannot delete an accepted application', 400));
+  }
+
+  // Decrement applicationsCount in JobPost only if not withdrawn
+  if (application.status !== 'withdrawn') {
+    await JobPost.findByIdAndUpdate(
+      application.jobPost,
+      { $inc: { applicationsCount: -1 } },
+      { new: true }
+    );
   }
 
   await JobApplication.findByIdAndDelete(req.params.id);
@@ -342,10 +536,12 @@ exports.deleteApplication = catchAsync(async (req, res, next) => {
 exports.getApplicationStats = catchAsync(async (req, res, next) => {
   let matchStage = {};
 
+  const userId = req.user._id || req.user.id;
+
   if (req.user.role === 'student') {
-    matchStage.student = req.user._id;
+    matchStage.student = userId;
   } else if (req.user.role === 'client') {
-    const myJobPosts = await JobPost.find({ client: req.user.id }).select(
+    const myJobPosts = await JobPost.find({ client: userId }).select(
       '_id'
     );
     const jobPostIds = myJobPosts.map((job) => job._id);
@@ -389,68 +585,18 @@ exports.getApplicationStats = catchAsync(async (req, res, next) => {
   });
 });
 
-// Get applications for a specific job post (only job owner)
-exports.getJobApplications = catchAsync(async (req, res, next) => {
-  if (req.user.role !== 'client') {
-    return next(new AppError('Only clients can view job applications', 403));
-  }
-
-  // Check if client owns the job post
-  const jobPost = await JobPost.findById(req.params.jobId);
-  if (!jobPost) {
-    return next(new AppError('Job post not found', 404));
-  }
-
-  if (jobPost.client._id.toString() !== req.user.id) {
-    return next(
-      new AppError('You can only view applications for your own job posts', 403)
-    );
-  }
-
-  // Get applications
-  const page = req.query.page * 1 || 1;
-  const limit = req.query.limit * 1 || 10;
-  const skip = (page - 1) * limit;
-
-  const query = { jobPost: req.params.jobId };
-
-  // Add status filter if provided
-  if (req.query.status) {
-    query.status = req.query.status;
-  }
-
-  const applications = await JobApplication.find(query)
-    .sort('-createdAt')
-    .skip(skip)
-    .limit(limit);
-
-  const total = await JobApplication.countDocuments(query);
-
-  res.status(200).json({
-    status: 'success',
-    results: applications.length,
-    pagination: {
-      page,
-      limit,
-      total,
-      pages: Math.ceil(total / limit),
-    },
-    data: {
-      applications,
-    },
-  });
-});
-
 // Check if student has already applied to a job
 exports.checkApplicationStatus = catchAsync(async (req, res, next) => {
   if (req.user.role !== 'student') {
     return next(new AppError('Only students can check application status', 403));
   }
 
+  const userId = req.user._id || req.user.id;
+
   // Check if student has already applied (excluding withdrawn applications)
   const existingApplication = await JobApplication.findOne({
     jobPost: req.params.jobId,
-    student: req.user.id,
+    student: userId,
     status: { $ne: 'withdrawn' }, // Exclude withdrawn applications
   });
 
@@ -483,12 +629,14 @@ exports.unlockStudentContact = catchAsync(async (req, res, next) => {
     return next(new AppError('Job post not found', 404));
   }
 
+  const userId = req.user._id || req.user.id;
+
   // Check if client owns the job post
   const jobPostClientId = application.jobPost.client._id
     ? application.jobPost.client._id.toString()
     : application.jobPost.client.toString();
 
-  if (jobPostClientId !== req.user.id) {
+  if (jobPostClientId !== userId.toString()) {
     return next(
       new AppError('You can only unlock contacts for your own job posts', 403)
     );
@@ -507,7 +655,7 @@ exports.unlockStudentContact = catchAsync(async (req, res, next) => {
 
   // Get client user to check points
   const User = require('../models/userModel');
-  const client = await User.findById(req.user.id);
+  const client = await User.findById(userId);
 
   if (!client) {
     return next(new AppError('Client not found', 404));
@@ -583,6 +731,101 @@ exports.unlockStudentContact = catchAsync(async (req, res, next) => {
     data: {
       application,
       pointsRemaining: client.clientProfile.pointsRemaining,
+    },
+  });
+});
+
+// Get applications for a specific job with filters (only clients)
+exports.getJobApplications = catchAsync(async (req, res, next) => {
+  if (req.user.role !== 'client') {
+    return next(new AppError('Only clients can view job applications', 403));
+  }
+
+  const { jobId } = req.params;
+
+  // Verify job belongs to client
+  const jobPost = await JobPost.findById(jobId);
+  if (!jobPost) {
+    return next(new AppError('Job post not found', 404));
+  }
+
+  const clientId = req.user._id || req.user.id;
+  const jobClientId = jobPost.client._id ? jobPost.client._id.toString() : jobPost.client.toString();
+
+  if (jobClientId !== clientId.toString()) {
+    return next(new AppError('You can only view applications for your own jobs', 403));
+  }
+
+  // Build query
+  const query = { jobPost: jobId };
+
+  // Filter by nationality
+  if (req.query.nationality) {
+    query['student.nationality'] = req.query.nationality;
+  }
+
+  // Filter by experience level
+  if (req.query.experienceLevel) {
+    query.relevantExperienceLevel = req.query.experienceLevel;
+  }
+
+  // Filter by status
+  if (req.query.status) {
+    query.status = req.query.status;
+  }
+
+  // Get all applications with student info
+  let mongoQuery = JobApplication.find(query).populate({
+    path: 'student',
+    select: 'name email photo age nationality phone location studentProfile',
+  });
+
+  // Sorting
+  const sortBy = req.query.sortBy || 'createdAt';
+  const sortOrder = req.query.sortOrder === 'asc' ? '' : '-';
+  mongoQuery = mongoQuery.sort(`${sortOrder}${sortBy}`);
+
+  // Pagination
+  const page = req.query.page * 1 || 1;
+  const limit = req.query.limit * 1 || 10;
+  const skip = (page - 1) * limit;
+
+  mongoQuery = mongoQuery.skip(skip).limit(limit);
+
+  // Execute query
+  const applications = await mongoQuery;
+
+  // Get total count for pagination
+  const total = await JobApplication.countDocuments(query);
+
+  // Get unique nationalities for filter dropdown
+  const uniqueNationalities = await JobApplication.aggregate([
+    { $match: { jobPost: jobPost._id } },
+    {
+      $lookup: {
+        from: 'users',
+        localField: 'student',
+        foreignField: '_id',
+        as: 'studentData',
+      },
+    },
+    { $unwind: '$studentData' },
+    { $group: { _id: '$studentData.nationality' } },
+    { $sort: { _id: 1 } },
+  ]);
+
+  res.status(200).json({
+    status: 'success',
+    results: applications.length,
+    pagination: {
+      page,
+      limit,
+      total,
+      pages: Math.ceil(total / limit),
+    },
+    data: {
+      applications,
+      uniqueNationalities: uniqueNationalities.map((n) => n._id).filter(Boolean),
     },
   });
 });

@@ -109,9 +109,11 @@ const JobDetails = () => {
 
   const job = jobData?.data?.jobPost;
   const canApply = limitData?.data?.canApply;
+  const currentUsage = limitData?.data?.currentUsage || 0;
+  const monthlyLimit = limitData?.data?.limit || 10;
+  const resetDate = limitData?.data?.resetDate;
   const subscription = subscriptionData?.data?.subscription;
-  const isPremium = subscription?.plan === 'premium';
-
+  const isPremium = subscription?.plan === 'premium' || limitData?.data?.plan === 'premium';
   if (!job) {
     return (
       <div className="text-center py-12">
@@ -252,10 +254,44 @@ const JobDetails = () => {
             </div>
           ) : (
             <div>
+              {/* Monthly Usage Info */}
+              <div className="mb-4 p-4 bg-gray-50 rounded-lg border border-gray-200">
+                <div className="flex items-center justify-between">
+                  <div>
+                    <p className="text-sm text-gray-600 mb-1">Applications This Month</p>
+                    <p className="text-2xl font-bold text-gray-900">
+                      {currentUsage} / {monthlyLimit}
+                    </p>
+                  </div>
+                  <div className="text-right">
+                    <p className="text-sm text-gray-600 mb-1">Plan</p>
+                    <Badge variant={isPremium ? 'success' : 'info'}>
+                      {isPremium ? 'Premium' : 'Free'}
+                    </Badge>
+                  </div>
+                </div>
+                {resetDate && (
+                  <p className="text-xs text-gray-500 mt-2">
+                    Resets on {new Date(resetDate).toLocaleDateString()}
+                  </p>
+                )}
+                {!isPremium && currentUsage > monthlyLimit * 0.7 && (
+                  <Alert
+                    type="warning"
+                    message={`You've used ${currentUsage} of ${monthlyLimit} applications. Upgrade to Premium for 100 applications per month!`}
+                    className="mt-3"
+                  />
+                )}
+              </div>
+
               {!canApply && (
                 <Alert
                   type="error"
-                  message="You've reached your monthly application limit. Upgrade to Premium for unlimited applications!"
+                  message={`You've reached your monthly application limit of ${monthlyLimit}. ${
+                    isPremium
+                      ? 'Your limit will reset on the first day of next month.'
+                      : 'Upgrade to Premium for 100 applications per month!'
+                  }`}
                   className="mb-4"
                 />
               )}

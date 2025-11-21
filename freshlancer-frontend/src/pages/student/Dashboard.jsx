@@ -43,8 +43,8 @@ const StudentDashboard = () => {
 
   const isVerified = verificationStatus?.data?.isVerified;
   const subscriptionData = subscription?.data?.subscription;
+  console.log("DATA " + subscriptionData);
   const applicationsRemaining = subscriptionData?.applicationLimitPerMonth - subscriptionData?.applicationsUsedThisMonth;
-
   return (
     <div className="space-y-6">
       {/* Verification Alert */}

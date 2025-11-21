@@ -95,7 +95,7 @@ const Subscription = () => {
             </div>
             <p className="text-gray-600">
               {isPremium
-                ? 'Unlimited applications and priority support'
+                ? `${applicationsRemaining} of ${applicationsLimit} applications remaining this month`
                 : `${applicationsRemaining} of ${applicationsLimit} applications remaining this month`}
             </p>
             {subscription?.nextBillingDate && (
@@ -137,7 +137,13 @@ const Subscription = () => {
           {!isPremium && applicationsRemaining < 3 && (
             <Alert
               type="warning"
-              message={`You have only ${applicationsRemaining} application${applicationsRemaining !== 1 ? 's' : ''} remaining. Upgrade to Premium for unlimited applications!`}
+              message={`You have only ${applicationsRemaining} application${applicationsRemaining !== 1 ? 's' : ''} remaining. Upgrade to Premium for 100 applications per month!`}
+            />
+          )}
+          {isPremium && applicationsRemaining < 10 && (
+            <Alert
+              type="warning"
+              message={`You have only ${applicationsRemaining} application${applicationsRemaining !== 1 ? 's' : ''} remaining this month.`}
             />
           )}
         </div>
@@ -197,7 +203,7 @@ const Subscription = () => {
             <ul className="space-y-3 mb-6">
               <li className="flex items-start">
                 <CheckCircle className="w-5 h-5 text-green-500 mr-2 flex-shrink-0 mt-0.5" />
-                <span className="text-gray-700 font-semibold">Unlimited job applications</span>
+                <span className="text-gray-700 font-semibold">100 job applications per month</span>
               </li>
               <li className="flex items-start">
                 <CheckCircle className="w-5 h-5 text-green-500 mr-2 flex-shrink-0 mt-0.5" />
