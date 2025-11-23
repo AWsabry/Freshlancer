@@ -11,6 +11,7 @@ import Register from './pages/Register';
 // Payment pages
 import PaymentSuccess from './pages/PaymentSuccess';
 import PaymentFailed from './pages/PaymentFailed';
+import PaymentProcessing from './pages/PaymentProcessing';
 
 // Student pages
 import StudentDashboard from './pages/student/Dashboard';
@@ -65,6 +66,7 @@ function App() {
       <Route path="/register" element={!isAuthenticated ? <Register /> : <Navigate to="/" />} />
 
       {/* Payment callback routes - public but require authentication to function properly */}
+      <Route path="/payment/processing" element={<PaymentProcessing />} />
       <Route path="/payment/success" element={<PaymentSuccess />} />
       <Route path="/payment/failed" element={<PaymentFailed />} />
 

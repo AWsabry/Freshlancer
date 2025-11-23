@@ -43,27 +43,42 @@ const Payment = () => {
 
   const purchaseMutation = useMutation({
     mutationFn: (paymentData) => packageService.purchasePackage(packageType, paymentData),
-    onSuccess: (response) => {
-      // Check if response contains Paymob client secret (for EGP payments)
-      if (response.data?.clientSecret) {
-        // Construct Paymob unified checkout URL
-        const publicKey = 'egy_pk_test_xgfkuiZo2us0viNDmSCVU1OvNnJQOUwv';
-        const clientSecret = response.data.clientSecret;
-        const paymobUrl = `https://accept.paymob.com/unifiedcheckout/?publicKey=${publicKey}&clientSecret=${clientSecret}`;
+    onSuccess: async (response) => {
+      try {
+        console.log('Payment response received:', response);
+        console.log('Response data:', response?.data);
 
-        console.log('Redirecting to Paymob:', paymobUrl);
-        // Redirect to Paymob payment page
-        window.location.href = paymobUrl;
-      } else {
-        // For non-EGP currencies, show success message
-        queryClient.invalidateQueries(['myPackages']);
-        queryClient.invalidateQueries(['activePackage']);
-        queryClient.invalidateQueries(['pointsBalance']);
-        alert(`Payment successful! ${points} points have been added to your account.`);
-        navigate('/client/packages');
+        // Check if response contains Paymob client secret (for EGP payments)
+        if (response?.data?.clientSecret) {
+          const publicKey = 'egy_pk_test_xgfkuiZo2us0viNDmSCVU1OvNnJQOUwv';
+          const clientSecret = response.data.clientSecret;
+          const paymobUrl = `https://accept.paymob.com/unifiedcheckout/?publicKey=${publicKey}&clientSecret=${clientSecret}`;
+
+          console.log('Client Secret received:', clientSecret);
+          console.log('Redirecting to Paymob:', paymobUrl);
+
+          // Add small delay to ensure state is updated
+          await new Promise(resolve => setTimeout(resolve, 100));
+
+          // Redirect to Paymob payment page
+          window.location.href = paymobUrl;
+        } else {
+          console.warn('No clientSecret in response. Response structure:', response);
+          // For non-EGP currencies or fallback
+          queryClient.invalidateQueries(['myPackages']);
+          queryClient.invalidateQueries(['activePackage']);
+          queryClient.invalidateQueries(['pointsBalance']);
+          alert(`Payment successful! ${points} points have been added to your account.`);
+          navigate('/client/packages');
+        }
+      } catch (error) {
+        console.error('Error processing payment response:', error);
+        alert('Payment processing error. Please contact support.');
       }
     },
     onError: (error) => {
+      console.error('Payment mutation error:', error);
+      console.error('Error response:', error.response);
       alert(error.response?.data?.message || 'Payment failed. Please try again.');
     },
   });

@@ -17,7 +17,7 @@ class PaymobService {
    * @returns {Promise<Object>} Payment intention response
    */
   async createPaymentIntention(paymentData) {
-    console.log('Creating Paymob payment intention with data:', paymentData);
+    console.log('Payment Created');
     try {
       const {
         amount,
@@ -38,10 +38,6 @@ class PaymobService {
       if (integrationId) {
         paymentMethods.push(integrationId);
       }
-
-      // Build redirection URL for success callback
-      const baseUrl = process.env.BASE_URL || 'http://localhost:8080';
-      const redirectionUrl = `${baseUrl}/api/v1/paymob/success`;
 
       const requestBody = {
         amount: Math.round(amount * 100), // Paymob expects amount in cents
@@ -72,12 +68,12 @@ class PaymobService {
           extras: customer?.extras || {},
         },
         extras: paymentData.extras || {},
-        redirection_url: redirectionUrl, // Paymob will redirect here after payment
+        // Paymob will use default redirect URL configured in dashboard
       };
 
-      console.log('=== PAYMOB REQUEST ===');
+      // console.log('=== PAYMOB REQUEST ===');
       console.log('URL:', `${PAYMOB_BASE_URL}/intention/`);
-      console.log('Request Body:', JSON.stringify(requestBody, null, 2));
+      // console.log('Request Body:', JSON.stringify(requestBody, null, 2));
       console.log('Headers:', {
         'Authorization': `Bearer ${this.apiKey}`,
         'Content-Type': 'application/json',
@@ -95,8 +91,23 @@ class PaymobService {
       );
 
       console.log('=== PAYMOB RESPONSE ===');
-      console.log('Status:', response.status);
-      console.log('Response Data:', JSON.stringify(response.data, null, 2));
+      console.log('HTTP Status:', response.status);
+      console.log('Payment Intention Status:', response.data.status);
+      console.log('Intention ID:', response.data.id);
+      console.log('Client Secret:', response.data.client_secret);
+
+      // Explain payment status
+      const statusExplanation = {
+        'PENDING': '⏳ Payment intention created, waiting for user to complete payment',
+        'PROCESSED': '✅ Payment completed successfully',
+        'EXPIRED': '⏰ Payment intention expired',
+        'FAILED': '❌ Payment failed',
+        'VOIDED': '🚫 Payment voided',
+        'REFUNDED': '💰 Payment refunded'
+      };
+
+      console.log('Status Meaning:', statusExplanation[response.data.status] || 'Unknown status');
+      console.log('\nFull Response Data:', JSON.stringify(response.data, null, 2));
 
       return {
         success: true,
@@ -123,15 +134,24 @@ class PaymobService {
    * @returns {Promise<Object>} Payment status
    */
   async verifyPayment(intentionId) {
+
+
     try {
       const response = await axios.get(
         `${PAYMOB_BASE_URL}/intention/${intentionId}`,
         {
           headers: {
-            'Authorization': `Token ${this.apiKey}`,
+            'Authorization': `Bearer ${this.apiKey}`,
           },
         }
       );
+
+      console.log('=== PAYMOB VERIFY RESPONSE ===');
+      console.log('HTTP Status:', response.status);
+      console.log('Payment Status:', response.data.status);
+      console.log('Is Paid:', response.data.status === 'PROCESSED');
+      console.log('Intention ID:', response.data.id);
+      console.log('Full Response Data:', JSON.stringify(response.data, null, 2));
 
       return {
         success: true,
@@ -154,14 +174,22 @@ class PaymobService {
    * @returns {Object} Processed webhook data
    */
   processWebhook(webhookData) {
+    // Paymob sends webhook in this format: { type: "TRANSACTION", obj: {...} }
+    const transaction = webhookData.obj || webhookData;
+
     return {
-      intentionId: webhookData.id,
-      status: webhookData.status,
-      isPaid: webhookData.status === 'PROCESSED',
-      amount: webhookData.amount / 100, // Convert from cents
-      currency: webhookData.currency,
-      transactionId: webhookData.transaction?.id || null,
-      orderId: webhookData.order?.id || null,
+      intentionId: transaction.order?.id || webhookData.id,
+      transactionId: transaction.id,
+      status: transaction.success ? 'PROCESSED' : 'FAILED',
+      isPaid: transaction.success === true && transaction.pending === false,
+      amount: transaction.amount_cents / 100, // Convert from cents
+      currency: transaction.currency,
+      orderId: transaction.order?.id || null,
+      isRefunded: transaction.is_refunded || false,
+      isVoided: transaction.is_voided || false,
+      paymentMethod: transaction.source_data?.type || 'unknown',
+      cardType: transaction.source_data?.sub_type || null,
+      cardLastFour: transaction.source_data?.pan || null,
     };
   }
 }

@@ -1,0 +1,301 @@
+{
+	"info": {
+		"_postman_id": "paymob-testing-collection",
+		"name": "Paymob Integration Testing",
+		"description": "Collection for testing Paymob payment integration endpoints",
+		"schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+	},
+	"item": [
+		{
+			"name": "Authentication",
+			"item": [
+				{
+					"name": "Login",
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"exec": [
+									"// Save JWT token to environment variable",
+									"if (pm.response.code === 200) {",
+									"    const jsonData = pm.response.json();",
+									"    pm.environment.set('jwt_token', jsonData.token);",
+									"    console.log('JWT Token saved:', jsonData.token);",
+									"}"
+								],
+								"type": "text/javascript"
+							}
+						}
+					],
+					"request": {
+						"method": "POST",
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n  \"email\": \"your-email@example.com\",\n  \"password\": \"your-password\"\n}"
+						},
+						"url": {
+							"raw": "{{base_url}}/api/v1/users/login",
+							"host": [
+								"{{base_url}}"
+							],
+							"path": [
+								"api",
+								"v1",
+								"users",
+								"login"
+							]
+						},
+						"description": "Login to get JWT token. Update the email and password with your test account."
+					},
+					"response": []
+				}
+			]
+		},
+		{
+			"name": "Paymob - Payment Flow",
+			"item": [
+				{
+					"name": "1. Test Paymob Integration",
+					"request": {
+						"method": "POST",
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							},
+							{
+								"key": "Authorization",
+								"value": "Bearer {{jwt_token}}"
+							}
+						],
+						"url": {
+							"raw": "{{base_url}}/api/v1/paymob/test",
+							"host": [
+								"{{base_url}}"
+							],
+							"path": [
+								"api",
+								"v1",
+								"paymob",
+								"test"
+							]
+						},
+						"description": "Test Paymob integration with sample data. This creates a real test payment intention with Paymob."
+					},
+					"response": []
+				},
+				{
+					"name": "2. Create Payment Intention (Real)",
+					"request": {
+						"method": "POST",
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							},
+							{
+								"key": "Authorization",
+								"value": "Bearer {{jwt_token}}"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n  \"amount\": 100,\n  \"currency\": \"EGP\",\n  \"paymentType\": \"subscription\",\n  \"items\": [\n    {\n      \"name\": \"Premium Subscription\",\n      \"amount\": 100,\n      \"description\": \"Monthly Premium Subscription\",\n      \"quantity\": 1\n    }\n  ],\n  \"billingData\": {\n    \"firstName\": \"Test\",\n    \"lastName\": \"User\",\n    \"email\": \"test@example.com\",\n    \"phoneNumber\": \"+201000000000\",\n    \"apartment\": \"NA\",\n    \"floor\": \"NA\",\n    \"street\": \"Test Street\",\n    \"building\": \"NA\",\n    \"country\": \"EGY\",\n    \"state\": \"NA\"\n  }\n}"
+						},
+						"url": {
+							"raw": "{{base_url}}/api/v1/paymob/create-intention",
+							"host": [
+								"{{base_url}}"
+							],
+							"path": [
+								"api",
+								"v1",
+								"paymob",
+								"create-intention"
+							]
+						},
+						"description": "Create a real payment intention. This requires an active user session with subscription."
+					},
+					"response": []
+				},
+				{
+					"name": "3. Verify Payment",
+					"request": {
+						"method": "GET",
+						"header": [
+							{
+								"key": "Authorization",
+								"value": "Bearer {{jwt_token}}"
+							}
+						],
+						"url": {
+							"raw": "{{base_url}}/api/v1/paymob/verify/:intentionId",
+							"host": [
+								"{{base_url}}"
+							],
+							"path": [
+								"api",
+								"v1",
+								"paymob",
+								"verify",
+								":intentionId"
+							],
+							"variable": [
+								{
+									"key": "intentionId",
+									"value": "373391940",
+									"description": "Replace with actual intention ID from step 2"
+								}
+							]
+						},
+						"description": "Verify payment status. Replace :intentionId with the actual intention ID from the create payment response."
+					},
+					"response": []
+				}
+			]
+		},
+		{
+			"name": "Paymob - Webhook Testing",
+			"item": [
+				{
+					"name": "Test Webhook Handler",
+					"request": {
+						"method": "POST",
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							},
+							{
+								"key": "Authorization",
+								"value": "Bearer {{jwt_token}}"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n  \"transactionId\": 192036465,\n  \"orderId\": 217503754,\n  \"amount_cents\": 100000\n}"
+						},
+						"url": {
+							"raw": "{{base_url}}/api/v1/paymob/test-webhook",
+							"host": [
+								"{{base_url}}"
+							],
+							"path": [
+								"api",
+								"v1",
+								"paymob",
+								"test-webhook"
+							]
+						},
+						"description": "Test the webhook handler with sample data. This simulates what Paymob sends to your webhook endpoint."
+					},
+					"response": []
+				},
+				{
+					"name": "Simulate Real Webhook (Full Payload)",
+					"request": {
+						"method": "POST",
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n  \"type\": \"TRANSACTION\",\n  \"obj\": {\n    \"id\": 192036465,\n    \"pending\": false,\n    \"amount_cents\": 100000,\n    \"success\": true,\n    \"is_auth\": false,\n    \"is_capture\": false,\n    \"is_standalone_payment\": true,\n    \"is_voided\": false,\n    \"is_refunded\": false,\n    \"is_3d_secure\": true,\n    \"integration_id\": 4097558,\n    \"profile_id\": 164295,\n    \"has_parent_transaction\": false,\n    \"order\": {\n      \"id\": 217503754,\n      \"created_at\": \"2024-06-13T11:32:09.628623\",\n      \"delivery_needed\": false,\n      \"amount_cents\": 100000,\n      \"currency\": \"EGP\",\n      \"is_payment_locked\": false,\n      \"merchant_order_id\": null,\n      \"paid_amount_cents\": 100000\n    },\n    \"created_at\": \"2024-06-13T11:33:44.592345\",\n    \"currency\": \"EGP\",\n    \"source_data\": {\n      \"pan\": \"2346\",\n      \"type\": \"card\",\n      \"tenure\": null,\n      \"sub_type\": \"MasterCard\"\n    },\n    \"api_source\": \"IFRAME\",\n    \"is_void\": false,\n    \"is_refund\": false,\n    \"error_occured\": false,\n    \"is_live\": false,\n    \"refunded_amount_cents\": 0,\n    \"source_id\": -1,\n    \"is_captured\": false,\n    \"captured_amount\": 0,\n    \"owner\": 302852\n  },\n  \"issuer_bank\": null,\n  \"transaction_processed_callback_responses\": \"\"\n}"
+						},
+						"url": {
+							"raw": "{{base_url}}/api/v1/paymob/webhook",
+							"host": [
+								"{{base_url}}"
+							],
+							"path": [
+								"api",
+								"v1",
+								"paymob",
+								"webhook"
+							]
+						},
+						"description": "Simulates the actual webhook POST request from Paymob. This is a public endpoint (no auth required). Check your server console for logs."
+					},
+					"response": []
+				}
+			]
+		},
+		{
+			"name": "Paymob - Callback Testing",
+			"item": [
+				{
+					"name": "Payment Success Callback",
+					"request": {
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "{{base_url}}/api/v1/paymob/success?id=373391940",
+							"host": [
+								"{{base_url}}"
+							],
+							"path": [
+								"api",
+								"v1",
+								"paymob",
+								"success"
+							],
+							"query": [
+								{
+									"key": "id",
+									"value": "373391940",
+									"description": "Replace with actual intention ID"
+								}
+							]
+						},
+						"description": "Simulates Paymob redirecting user to success callback. Replace 'id' with actual intention ID. This will redirect to frontend."
+					},
+					"response": []
+				},
+				{
+					"name": "Check Payment Status (JSON)",
+					"request": {
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "{{base_url}}/api/v1/paymob/payment-status?id=pi_test_3484dcb8e8d04934bb5c24700d2493d1",
+							"host": [
+								"{{base_url}}"
+							],
+							"path": [
+								"api",
+								"v1",
+								"paymob",
+								"payment-status"
+							],
+							"query": [
+								{
+									"key": "id",
+									"value": "pi_test_3484dcb8e8d04934bb5c24700d2493d1",
+									"description": "Payment intention ID"
+								}
+							]
+						},
+						"description": "Check payment status as JSON. Returns payment details including isPaid status."
+					},
+					"response": []
+				}
+			]
+		}
+	],
+	"variable": [
+		{
+			"key": "base_url",
+			"value": "http://localhost:8080",
+			"type": "string"
+		}
+	]
+}

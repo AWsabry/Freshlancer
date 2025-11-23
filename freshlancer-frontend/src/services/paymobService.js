@@ -1,0 +1,20 @@
+import api from './api';
+
+export const paymobService = {
+  /**
+   * Check payment status by intention ID
+   * @param {string} intentionId - The payment intention ID from Paymob
+   * @returns {Promise} Payment status data
+   */
+  checkPaymentStatus: async (intentionId) => {
+    try {
+      const response = await api.get(`/paymob/payment-status?id=${intentionId}`);
+      return response.data;
+    } catch (error) {
+      console.error('Error checking payment status:', error);
+      throw error;
+    }
+  },
+};
+
+export default paymobService;

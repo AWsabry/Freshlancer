@@ -10,8 +10,12 @@ router.post('/webhook', paymobController.handleWebhook);
 // Public success callback endpoint (no authentication required - user redirected from Paymob)
 router.get('/success', paymobController.paymentSuccess);
 
-// Test endpoint (protected for security)
+// Get payment status as JSON (public - for frontend to check after redirect)
+router.get('/payment-status', paymobController.getPaymentStatus);
+
+// Test endpoints (protected for security)
 router.post('/test', authController.protect, paymobController.testPaymobIntegration);
+router.post('/test-webhook', authController.protect, paymobController.testWebhook);
 
 // All routes below require authentication
 router.use(authController.protect);
