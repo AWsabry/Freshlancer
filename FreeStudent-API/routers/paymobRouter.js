@@ -10,6 +10,9 @@ router.post('/webhook', paymobController.handleWebhook);
 // Public success callback endpoint (no authentication required - user redirected from Paymob)
 router.get('/success', paymobController.paymentSuccess);
 
+// Complete payment success endpoint - updates everything (no authentication required)
+router.get('/complete-success', paymobController.completePaymentSuccess);
+
 // Get payment status as JSON (public - for frontend to check after redirect)
 router.get('/payment-status', paymobController.getPaymentStatus);
 

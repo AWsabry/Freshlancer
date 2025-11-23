@@ -132,9 +132,13 @@ class PaymobService {
    * Verify payment status
    * @param {String} intentionId - Payment intention ID
    * @returns {Promise<Object>} Payment status
+   * @deprecated Paymob API doesn't support GET method for this endpoint (405 error)
+   * Payment status should be checked via webhooks and success callbacks instead
    */
   async verifyPayment(intentionId) {
-
+    // NOTE: This method currently doesn't work as Paymob returns 405 Method Not Allowed
+    // Payment verification should be done via webhooks and success callbacks
+    // Keeping this method for potential future use if Paymob changes their API
 
     try {
       const response = await axios.get(

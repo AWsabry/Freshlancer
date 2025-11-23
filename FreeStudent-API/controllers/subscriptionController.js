@@ -97,7 +97,14 @@ exports.checkApplicationLimit = catchAsync(async (req, res, next) => {
 
 // Upgrade to premium
 exports.upgradeToPremium = catchAsync(async (req, res, next) => {
+  console.log('\n=== SUBSCRIPTION UPGRADE REQUEST ===');
+  console.log('Timestamp:', new Date().toISOString());
+  console.log('User ID:', req.user._id);
+  console.log('User Role:', req.user.role);
+  console.log('Request Body:', JSON.stringify(req.body, null, 2));
+
   if (req.user.role !== 'student') {
+    console.log('❌ Error: Only students can upgrade subscriptions');
     return next(new AppError('Only students can upgrade subscriptions', 403));
   }
 
@@ -107,13 +114,23 @@ exports.upgradeToPremium = catchAsync(async (req, res, next) => {
     status: 'active',
   });
 
+  console.log('Current Subscription:', subscription ? {
+    id: subscription._id,
+    plan: subscription.plan,
+    status: subscription.status
+  } : 'No active subscription found');
+
   if (subscription && subscription.plan === 'premium') {
+    console.log('❌ Error: User already has premium subscription');
     return next(new AppError('You already have a premium subscription', 400));
   }
 
   // Get currency and billing cycle from request
   const currency = req.body.currency || 'USD';
   const billingCycle = req.body.billingCycle || 'monthly';
+  
+  console.log('Currency:', currency);
+  console.log('Billing Cycle:', billingCycle);
 
   // Validate currency
   const supportedCurrencies = ['USD', 'EGP', 'EUR', 'GBP', 'AED', 'SAR', 'QAR', 'KWD', 'BHD', 'OMR', 'JOD', 'LBP', 'ILS', 'TRY', 'ZAR', 'MAD', 'TND', 'DZD', 'NGN', 'KES', 'GHS', 'UGX', 'TZS', 'ETB', 'CHF', 'SEK', 'NOK', 'DKK', 'PLN', 'CZK', 'HUF', 'RON', 'BGN', 'HRK', 'RUB', 'UAH'];
@@ -123,43 +140,60 @@ exports.upgradeToPremium = catchAsync(async (req, res, next) => {
 
   // Get price for the selected currency
   const premiumPrice = getPriceForCurrency(currency, billingCycle);
+  console.log('Premium Price:', premiumPrice, currency);
 
   // Create or update subscription
-  // if (subscription) {
-  //   // Upgrade existing subscription
-  //   subscription.plan = 'premium';
-  //   subscription.applicationLimitPerMonth = 100; // Premium gets 100 applications per month
-  //   subscription.price = {
-  //     amount: premiumPrice,
-  //     currency: currency,
-  //   };
-  //   subscription.billingCycle = billingCycle;
-  //   subscription.autoRenew = req.body.autoRenew || true;
-  //   subscription.paymentMethodId = req.body.paymentMethodId;
-  //   subscription.nextBillingDate = new Date(
-  //     Date.now() + 30 * 24 * 60 * 60 * 1000
-  //   ); // 30 days from now
+  if (subscription) {
+    console.log('📝 Updating existing subscription to premium');
+    // Upgrade existing subscription
+    subscription.plan = 'premium';
+    subscription.applicationLimitPerMonth = 100; // Premium gets 100 applications per month
+    subscription.price = {
+      amount: premiumPrice,
+      currency: currency,
+    };
+    subscription.billingCycle = billingCycle;
+    subscription.autoRenew = req.body.autoRenew || true;
+    subscription.paymentMethodId = req.body.paymentMethodId;
+    subscription.nextBillingDate = new Date(
+      Date.now() + 30 * 24 * 60 * 60 * 1000
+    ); // 30 days from now
+    subscription.status = 'pending'; // Set to pending until payment is confirmed
 
-  //   await subscription.save();
-  // } else {
-  //   // Create new premium subscription
-  //   subscription = await Subscription.create({
-  //     student: req.user._id,
-  //     plan: 'premium',
-  //     status: 'pending',
-  //     applicationLimitPerMonth: 100, // Premium gets 100 applications per month
-  //     price: {
-  //       amount: premiumPrice,
-  //       currency: currency,
-  //     },
-  //     billingCycle: billingCycle,
-  //     autoRenew: req.body.autoRenew || true,
-  //     paymentMethodId: req.body.paymentMethodId,
-  //     nextBillingDate: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000),
-  //   });
-  // }
+    await subscription.save();
+    console.log('✅ Subscription updated:', {
+      id: subscription._id,
+      plan: subscription.plan,
+      status: subscription.status,
+      price: subscription.price
+    });
+  } else {
+    console.log('📝 Creating new premium subscription');
+    // Create new premium subscription
+    subscription = await Subscription.create({
+      student: req.user._id,
+      plan: 'premium',
+      status: 'pending', // Set to pending until payment is confirmed
+      applicationLimitPerMonth: 100, // Premium gets 100 applications per month
+      price: {
+        amount: premiumPrice,
+        currency: currency,
+      },
+      billingCycle: billingCycle,
+      autoRenew: req.body.autoRenew || true,
+      paymentMethodId: req.body.paymentMethodId,
+      nextBillingDate: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000),
+    });
+    console.log('✅ Subscription created:', {
+      id: subscription._id,
+      plan: subscription.plan,
+      status: subscription.status,
+      price: subscription.price
+    });
+  }
 
   // Create transaction record
+  console.log('📝 Creating transaction record');
   const transaction = await Transaction.create({
     user: req.user._id,
     type: 'subscription_payment',
@@ -171,13 +205,26 @@ exports.upgradeToPremium = catchAsync(async (req, res, next) => {
     relatedId: subscription._id,
     relatedType: 'Subscription',
   });
+  console.log('✅ Transaction created:', {
+    id: transaction._id,
+    type: transaction.type,
+    amount: transaction.amount,
+    currency: transaction.currency,
+    status: transaction.status
+  });
 
   // If currency is EGP, use Paymob payment gateway
   if (currency === 'EGP') {
-    console.log('Initiating Paymob payment for EGP subscription upgrade');
+    console.log('\n💳 Initiating Paymob payment for EGP subscription upgrade');
     try {
       // Get user information
       const user = await User.findById(req.user._id);
+      console.log('User Info:', {
+        id: user._id,
+        name: user.name,
+        email: user.email,
+        phone: user.phone
+      });
 
       // Prepare customer data
       const customer = {
@@ -192,8 +239,10 @@ exports.upgradeToPremium = catchAsync(async (req, res, next) => {
           subscriptionId: subscription._id.toString(),
         },
       };
+      console.log('Customer Data:', JSON.stringify(customer, null, 2));
 
       // Create Paymob payment intention
+      console.log('📞 Calling Paymob API to create payment intention...');
       const paymentIntention = await paymobService.createPaymentIntention({
         amount: premiumPrice,
         currency: 'EGP',
@@ -208,6 +257,12 @@ exports.upgradeToPremium = catchAsync(async (req, res, next) => {
         integrationId: req.body.integrationId,
       });
 
+      console.log('✅ Paymob Payment Intention Created:', {
+        intentionId: paymentIntention.intentionId,
+        clientSecret: paymentIntention.clientSecret ? '***' : null,
+        paymentUrl: paymentIntention.paymentUrl
+      });
+
       // Update transaction with Paymob details
       transaction.metadata = {
         intentionId: paymentIntention.intentionId,
@@ -215,9 +270,10 @@ exports.upgradeToPremium = catchAsync(async (req, res, next) => {
         paymentUrl: paymentIntention.paymentUrl,
       };
       await transaction.save();
+      console.log('✅ Transaction updated with Paymob details');
 
-      // Return payment URL to redirect user to Paymob
-      return res.status(200).json({
+      // Prepare response
+      const responseData = {
         status: 'success',
         data: {
           subscription,
@@ -227,15 +283,49 @@ exports.upgradeToPremium = catchAsync(async (req, res, next) => {
           intentionId: paymentIntention.intentionId,
           message: 'Please complete payment with Paymob',
         },
-      });
+      };
+
+      console.log('\n📤 RESPONSE OUTPUT:');
+      console.log('Status Code: 200');
+      console.log('Response Data:', JSON.stringify({
+        status: responseData.status,
+        data: {
+          subscription: {
+            id: responseData.data.subscription._id,
+            plan: responseData.data.subscription.plan,
+            status: responseData.data.subscription.status
+          },
+          transaction: {
+            id: responseData.data.transaction._id,
+            type: responseData.data.transaction.type,
+            amount: responseData.data.transaction.amount,
+            status: responseData.data.transaction.status
+          },
+          paymentUrl: responseData.data.paymentUrl,
+          intentionId: responseData.data.intentionId,
+          message: responseData.data.message
+        }
+      }, null, 2));
+      console.log('=== END SUBSCRIPTION UPGRADE REQUEST ===\n');
+
+      // Return payment URL to redirect user to Paymob
+      return res.status(200).json(responseData);
     } catch (error) {
       // If Paymob fails, return error
-      console.error('Paymob payment creation failed:', error);
+      console.error('❌ Paymob payment creation failed:', error);
+      console.error('Error Details:', {
+        message: error.message,
+        stack: error.stack,
+        response: error.response?.data
+      });
+      console.log('=== END SUBSCRIPTION UPGRADE REQUEST (ERROR) ===\n');
       return next(new AppError('Failed to create payment. Please try again.', 500));
     }
   }
 
   // For non-EGP currencies, payment gateway integration required
+  console.log('❌ Error: Payment gateway not integrated for currency:', currency);
+  console.log('=== END SUBSCRIPTION UPGRADE REQUEST (ERROR) ===\n');
   return next(
     new AppError(
       'Payment gateway for this currency is not yet integrated. Please use EGP currency or contact support.',

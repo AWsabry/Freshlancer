@@ -2,7 +2,7 @@ import api from './api';
 
 export const paymobService = {
   /**
-   * Check payment status by intention ID
+   * Check payment status by intention ID (read-only)
    * @param {string} intentionId - The payment intention ID from Paymob
    * @returns {Promise} Payment status data
    */

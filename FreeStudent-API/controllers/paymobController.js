@@ -90,29 +90,42 @@ exports.verifyPayment = catchAsync(async (req, res, next) => {
     return next(new AppError('Intention ID is required', 400));
   }
 
-  const paymentStatus = await paymobService.verifyPayment(intentionId);
-
-  // Update transaction status
+  // Find transaction - payment status is updated via webhook and success callback
+  // Note: Paymob API doesn't support GET method for verification endpoint
   const transaction = await Transaction.findOne({
     'metadata.intentionId': intentionId,
-  });
+  }).populate('user');
 
-  if (transaction) {
-    transaction.status = paymentStatus.isPaid ? 'completed' : 'pending';
-    if (paymentStatus.isPaid) {
-      transaction.completedAt = Date.now();
-    }
-    await transaction.save();
+  if (!transaction) {
+    return next(new AppError('Transaction not found', 404));
   }
+
+  // Map transaction status to Paymob-like status
+  let paymentStatus = 'PENDING';
+  if (transaction.status === 'completed') {
+    paymentStatus = 'PROCESSED';
+  } else if (transaction.status === 'failed') {
+    paymentStatus = 'FAILED';
+  }
+
+  const isPaid = transaction.status === 'completed';
 
   res.status(200).json({
     status: 'success',
     data: {
       intentionId,
-      paymentStatus: paymentStatus.status,
-      isPaid: paymentStatus.isPaid,
-      transactionId: transaction?._id,
-      fullData: paymentStatus.data,
+      paymentStatus: paymentStatus,
+      isPaid: isPaid,
+      transactionId: transaction._id,
+      amount: transaction.amount,
+      currency: transaction.currency,
+      type: transaction.type,
+      completedAt: transaction.completedAt,
+      user: transaction.user ? {
+        id: transaction.user._id,
+        name: transaction.user.name,
+        email: transaction.user.email,
+      } : null,
     },
   });
 });
@@ -273,13 +286,26 @@ exports.getPaymentStatus = catchAsync(async (req, res, next) => {
     console.log('Transaction found:', transaction._id);
     console.log('Transaction status:', transaction.status);
 
+    // Return transaction status from database
+    // Note: Payment status is updated via webhook and success callback from Paymob
+    // We don't call Paymob API here as GET method is not allowed for verification
+    const isPaid = transaction.status === 'completed';
+    
+    // Map transaction status to Paymob-like status for consistency
+    let paymentStatus = 'PENDING';
+    if (transaction.status === 'completed') {
+      paymentStatus = 'PROCESSED';
+    } else if (transaction.status === 'failed') {
+      paymentStatus = 'FAILED';
+    }
+
     return res.status(200).json({
       status: 'success',
       data: {
         intentionId: id,
         transactionId: transaction._id,
-        paymentStatus: transaction.status,
-        isPaid: transaction.status === 'completed',
+        paymentStatus: paymentStatus,
+        isPaid: isPaid,
         amount: transaction.amount,
         currency: transaction.currency,
         type: transaction.type,
@@ -301,46 +327,57 @@ exports.getPaymentStatus = catchAsync(async (req, res, next) => {
   }
 });
 
-// Success callback - called after successful payment
-exports.paymentSuccess = catchAsync(async (req, res, next) => {
-  const { id } = req.query; // Paymob sends 'id' as the intention ID
+// Complete payment success handler - updates everything
+exports.completePaymentSuccess = catchAsync(async (req, res, next) => {
+  const { id } = req.query; // Get intentionId from query parameter
+
+  console.log('\n=== COMPLETE PAYMENT SUCCESS ===');
+  console.log('Timestamp:', new Date().toISOString());
+  console.log('Intention ID:', id);
+  console.log('Query params:', req.query);
 
   if (!id) {
-    return res.redirect(`${process.env.FRONTEND_URL}/payment/failed?error=missing_id`);
+    console.log('❌ Error: Missing intention ID in query parameters');
+    return res.status(400).json({
+      status: 'fail',
+      message: 'Payment intention ID is required',
+    });
   }
 
-  console.log('=== PAYMENT SUCCESS CALLBACK ===');
-  console.log('Intention ID:', id);
-  console.log('Query Params:', req.query);
+  const intentionId = id;
 
   try {
-    // Find transaction - Paymob redirects here only on successful payment
+    // Find transaction by intention ID
     const transaction = await Transaction.findOne({
-      'metadata.intentionId': id,
+      'metadata.intentionId': intentionId,
     }).populate('user');
 
     if (!transaction) {
-      console.error('Transaction not found for intention ID:', id);
-      return res.redirect(`${process.env.FRONTEND_URL}/payment/failed?error=transaction_not_found`);
+      console.log('❌ Error: Transaction not found for intention ID:', intentionId);
+      return res.status(404).json({
+        status: 'fail',
+        message: 'Transaction not found',
+      });
     }
 
-    console.log('Transaction found:', transaction._id);
+    console.log('✅ Transaction found:', transaction._id);
     console.log('Transaction type:', transaction.type);
-    console.log('Transaction status:', transaction.status);
+    console.log('Current status:', transaction.status);
 
-    // Update transaction status
-    transaction.status = 'completed';
-    transaction.completedAt = Date.now();
+    // Update transaction status to completed if not already
+    if (transaction.status !== 'completed') {
+      console.log('Updating transaction status to completed');
+      transaction.status = 'completed';
+      transaction.completedAt = Date.now();
+      transaction.metadata.set('verifiedAt', Date.now());
+      transaction.metadata.set('successCallbackReceived', Date.now());
+      await transaction.save();
+      console.log('✅ Transaction status updated');
+    } else {
+      console.log('Transaction already completed');
+    }
 
-    // Update metadata properly for Mongoose Map
-    transaction.metadata.set('verifiedAt', Date.now());
-    transaction.metadata.set('successCallbackReceived', Date.now());
-
-    await transaction.save();
-
-    console.log('Transaction updated to completed');
-
-    // Process based on transaction type
+    // Get required models
     const Subscription = require('../models/subscriptionModel');
     const ClientPackage = require('../models/clientPackageModel');
     const Notification = require('../models/notificationModel');
@@ -348,72 +385,77 @@ exports.paymentSuccess = catchAsync(async (req, res, next) => {
     const user = await User.findById(transaction.user);
 
     if (!user) {
-      console.error('User not found for transaction:', transaction.user);
-      return res.redirect(`${process.env.FRONTEND_URL}/payment/failed?error=user_not_found`);
+      console.log('❌ Error: User not found:', transaction.user);
+      return res.status(404).json({
+        status: 'fail',
+        message: 'User not found',
+      });
     }
 
-    console.log('User found:', user._id, user.email);
+    console.log('✅ User found:', user._id, user.email);
 
+    // Handle subscription payment
     if (transaction.type === 'subscription_payment') {
-      console.log('=== PROCESSING SUBSCRIPTION PAYMENT ===');
-      // Handle subscription upgrade
+      console.log('\n=== UPGRADING SUBSCRIPTION TO PREMIUM ===');
+
       const subscription = await Subscription.findById(transaction.relatedId);
 
       if (subscription) {
         console.log('Subscription found:', subscription._id);
         console.log('Current plan:', subscription.plan);
 
-        subscription.plan = 'premium'; // Upgrade to premium plan
+        subscription.plan = 'premium';
         subscription.status = 'active';
         subscription.startDate = Date.now();
-        // Set end date to 1 month from now
         const endDate = new Date();
         endDate.setMonth(endDate.getMonth() + 1);
         subscription.endDate = endDate;
         subscription.lastPaymentDate = Date.now();
-        subscription.applicationLimitPerMonth = 100; // Premium gets 100 apps/month
+        subscription.applicationLimitPerMonth = 100;
         await subscription.save();
 
-        console.log('Subscription upgraded to:', subscription.plan);
+        console.log('✅ Subscription upgraded to:', subscription.plan);
+        console.log('End date:', endDate);
       } else {
-        console.warn('Subscription not found for relatedId:', transaction.relatedId);
+        console.log('⚠️ Warning: Subscription not found for ID:', transaction.relatedId);
       }
 
-      if (user && user.studentProfile) {
-        console.log('Updating user profile to premium');
+      // Update user profile to premium
+      if (user.studentProfile) {
+        console.log('Updating user studentProfile to premium');
 
         user.studentProfile.subscriptionTier = 'premium';
         user.studentProfile.subscriptionStartDate = Date.now();
-        // Set expiry to 1 month from now
         const expiryDate = new Date();
         expiryDate.setMonth(expiryDate.getMonth() + 1);
         user.studentProfile.subscriptionExpiryDate = expiryDate;
         await user.save({ validateBeforeSave: false });
 
-        console.log('User profile updated to premium');
-
-        // Create notification
-        await Notification.create({
-          user: user._id,
-          type: 'subscription_renewed',
-          title: 'Premium Subscription Activated',
-          message: 'Your premium subscription is now active! You can now apply to up to 100 jobs per month.',
-          relatedId: subscription?._id,
-          relatedType: 'Subscription',
-          priority: 'high',
-          icon: 'success',
-        });
-
-        console.log('Notification created');
+        console.log('✅ User profile upgraded to premium');
+        console.log('Expiry date:', expiryDate);
+      } else {
+        console.log('⚠️ Warning: User has no studentProfile');
       }
 
-      console.log('✅ Subscription activated successfully for user:', user._id);
+      // Create notification
+      await Notification.create({
+        user: user._id,
+        type: 'subscription_renewed',
+        title: 'Premium Subscription Activated',
+        message: 'Your premium subscription is now active! You can now apply to up to 100 jobs per month.',
+        relatedId: subscription?._id,
+        relatedType: 'Subscription',
+        priority: 'high',
+        icon: 'success',
+      });
 
-      // Redirect to payment processing page to check status
-      return res.redirect(`${process.env.FRONTEND_URL}/payment/processing?id=${id}`);
-    } else if (transaction.type === 'package_purchase') {
-      console.log('=== PROCESSING PACKAGE PURCHASE ===');
-      // Handle package purchase (points)
+      console.log('✅ Notification created');
+      console.log('=== SUBSCRIPTION UPGRADE COMPLETE ===\n');
+    } 
+    // Handle package purchase
+    else if (transaction.type === 'package_purchase') {
+      console.log('\n=== ACTIVATING PACKAGE PURCHASE ===');
+
       const clientPackage = await ClientPackage.findById(transaction.relatedId);
 
       if (clientPackage) {
@@ -424,47 +466,94 @@ exports.paymentSuccess = catchAsync(async (req, res, next) => {
         clientPackage.activationDate = Date.now();
         await clientPackage.save();
 
-        console.log('Package status updated to completed');
+        console.log('✅ Package status updated to completed');
 
         // Update user's points
-        if (user && user.clientProfile) {
+        if (user.clientProfile) {
           const previousPoints = user.clientProfile.pointsRemaining || 0;
           user.clientProfile.pointsRemaining = previousPoints + clientPackage.pointsTotal;
           user.clientProfile.currentPackage = clientPackage._id;
           await user.save({ validateBeforeSave: false });
 
-          console.log('Points updated:', previousPoints, '→', user.clientProfile.pointsRemaining);
-
-          // Create notification
-          await Notification.create({
-            user: user._id,
-            type: 'system_announcement',
-            title: 'Points Added Successfully',
-            message: `${clientPackage.pointsTotal} points have been added to your account! You now have ${user.clientProfile.pointsRemaining} points available. Points never expire.`,
-            relatedId: clientPackage._id,
-            relatedType: 'ClientPackage',
-            icon: 'success',
-          });
-
-          console.log('Notification created');
+          console.log('✅ User points updated:', previousPoints, '→', user.clientProfile.pointsRemaining);
+        } else {
+          console.log('⚠️ Warning: User has no clientProfile');
         }
 
-        console.log('✅ Package activated successfully for user:', user._id);
+        // Create notification
+        await Notification.create({
+          user: user._id,
+          type: 'system_announcement',
+          title: 'Points Added Successfully',
+          message: `${clientPackage.pointsTotal} points have been added to your account! You now have ${user.clientProfile.pointsRemaining} points available.`,
+          relatedId: clientPackage._id,
+          relatedType: 'ClientPackage',
+          icon: 'success',
+        });
 
-        // Redirect to payment processing page to check status
-        return res.redirect(`${process.env.FRONTEND_URL}/payment/processing?id=${id}`);
+        console.log('✅ Notification created');
+        console.log('=== PACKAGE ACTIVATION COMPLETE ===\n');
       } else {
-        console.warn('Package not found for relatedId:', transaction.relatedId);
+        console.log('⚠️ Warning: Package not found for ID:', transaction.relatedId);
       }
     }
 
-    // Default redirect if no specific type
-    console.log('No specific transaction type matched, using default redirect');
-    return res.redirect(`${process.env.FRONTEND_URL}/payment/processing?id=${id}`);
+    // Return success response
+    console.log('\n📤 RETURNING SUCCESS RESPONSE');
+    const responseData = {
+      status: 'success',
+      message: 'Payment processed successfully',
+      data: {
+        intentionId: intentionId,
+        transactionId: transaction._id,
+        isPaid: true,
+        paymentStatus: 'PROCESSED',
+        amount: transaction.amount,
+        currency: transaction.currency,
+        type: transaction.type,
+        completedAt: transaction.completedAt,
+        user: {
+          id: user._id,
+          name: user.name,
+          email: user.email,
+          subscriptionTier: user.studentProfile?.subscriptionTier || user.clientProfile?.currentPackage ? 'premium' : 'free',
+        },
+      },
+    };
+
+    console.log('Response:', JSON.stringify(responseData, null, 2));
+    console.log('=== END COMPLETE PAYMENT SUCCESS ===\n');
+
+    return res.status(200).json(responseData);
   } catch (error) {
-    console.error('Payment success callback error:', error);
-    return res.redirect(`${process.env.FRONTEND_URL}/payment/failed?error=processing_error`);
+    console.error('❌ Payment success processing error:', error);
+    console.error('Error stack:', error.stack);
+    console.log('=== END COMPLETE PAYMENT SUCCESS (ERROR) ===\n');
+
+    return res.status(500).json({
+      status: 'error',
+      message: 'Failed to process payment success',
+      error: error.message,
+    });
   }
+});
+
+// Success callback - called after successful payment (Paymob redirect endpoint)
+exports.paymentSuccess = catchAsync(async (req, res, next) => {
+  const { id } = req.query; // Paymob sends 'id' as the intention ID
+
+  console.log('=== PAYMENT SUCCESS CALLBACK ===');
+  console.log('Intention ID:', id);
+  console.log('Redirecting to frontend with ID...');
+
+  if (!id) {
+    console.log('❌ Missing intention ID');
+    return res.redirect(`${process.env.FRONTEND_URL}/payment/failed?error=missing_id`);
+  }
+
+  // Simply redirect to frontend payment success page with the intention ID
+  // The frontend will handle calling /complete-success to upgrade the subscription
+  return res.redirect(`${process.env.FRONTEND_URL}/payment/success?id=${id}`);
 });
 
 // Test webhook endpoint - simulates Paymob sending webhook data
