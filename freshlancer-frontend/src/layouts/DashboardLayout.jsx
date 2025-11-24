@@ -22,6 +22,7 @@ import {
   Users,
   Gift,
 } from 'lucide-react';
+import logo from '../assets/logos/Logo.png';
 
 const DashboardLayout = () => {
   const navigate = useNavigate();
@@ -48,6 +49,13 @@ const DashboardLayout = () => {
     navigate('/login');
   };
 
+  const themeClass =
+    user?.role === 'student'
+      ? 'student-theme'
+      : user?.role === 'client'
+        ? 'client-theme'
+        : '';
+
   const getNavigationItems = () => {
     const baseItems = [
       { name: 'Dashboard', icon: Home, path: `/${user?.role}/dashboard` },
@@ -64,6 +72,7 @@ const DashboardLayout = () => {
         { name: 'My Applications', icon: FileText, path: '/student/applications' },
         // { name: 'My Contracts', icon: FileText, path: '/student/contracts' },
         { name: 'Subscription', icon: CreditCard, path: '/student/subscription' },
+        { name: 'Transactions', icon: DollarSign, path: '/student/transactions' },
         // { name: 'Reviews', icon: Star, path: '/student/reviews' },
         ...baseItems.slice(1),
       ];
@@ -103,7 +112,7 @@ const DashboardLayout = () => {
   const navigationItems = getNavigationItems();
 
   return (
-    <div className="flex min-h-screen bg-gray-50">
+    <div className={`flex min-h-screen bg-gray-50 ${themeClass}`}>
       {/* Mobile sidebar backdrop */}
       {sidebarOpen && (
         <div
@@ -121,8 +130,12 @@ const DashboardLayout = () => {
         <div className="flex flex-col h-full">
           {/* Logo */}
           <div className="flex items-center justify-between h-16 px-6 border-b">
-            <Link to="/" className="text-2xl font-bold text-primary-600">
-              Freshlancer
+            <Link to="/" className="flex items-center">
+              <img
+                src={logo}
+                alt="Freshlancer logo"
+                className="h-8 w-auto object-contain"
+              />
             </Link>
             <button
               onClick={() => setSidebarOpen(false)}
@@ -207,7 +220,7 @@ const DashboardLayout = () => {
               <DollarSign className="w-5 h-5 text-primary-600" />
               <div>
                 <p className="text-xs text-primary-600 font-medium">Points</p>
-                <p className="text-lg font-bold text-primary-700">
+                <p className="text-lg font-bold text-[#8904aa]">
                   {userData.data.user.clientProfile.pointsRemaining}
                 </p>
               </div>

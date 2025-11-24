@@ -170,10 +170,9 @@ const JobApplicationsDetail = () => {
             <h1 className="text-2xl font-bold text-gray-900 mb-3">{job?.title}</h1>
             <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-4">
               <div className="flex items-center gap-2 text-gray-700">
-                <DollarSign className="w-5 h-5 text-primary-600" />
                 <div>
                   <p className="text-xs text-gray-500">Budget</p>
-                  <p className="font-semibold">${job?.budget?.min} - ${job?.budget?.max}</p>
+                  <p className="font-semibold">{job?.budget?.currency} {job?.budget?.min} - {job?.budget?.max}</p>
                 </div>
               </div>
               <div className="flex items-center gap-2 text-gray-700">
@@ -187,18 +186,18 @@ const JobApplicationsDetail = () => {
                 <Clock className="w-5 h-5 text-primary-600" />
                 <div>
                   <p className="text-xs text-gray-500">Duration</p>
-                  <p className="font-semibold">{job?.duration}</p>
+                  <p className="font-semibold">{job?.projectDuration}</p>
                 </div>
               </div>
-              <div className="flex items-center gap-2 text-gray-700">
-                <MapPin className="w-5 h-5 text-primary-600" />
-                <div>
-                  <p className="text-xs text-gray-500">Location</p>
-                  <p className="font-semibold">{job?.location}</p>
-                </div>
-              </div>
+        
             </div>
             <div className="flex items-center gap-2">
+              {job?.status === 'cancelled' && <Badge variant="error">Cancelled</Badge>}
+              {job?.status === 'completed' && <Badge variant="success">Completed</Badge>}
+              {job?.status === 'open' && <Badge variant="info">Open</Badge>}
+              {job?.status && !['cancelled', 'completed', 'open'].includes(job.status) && (
+                <Badge variant="default">{job.status}</Badge>
+              )}
               <Badge variant="info">{job?.category}</Badge>
               <Badge variant="success">{applications.length} Applicants</Badge>
             </div>

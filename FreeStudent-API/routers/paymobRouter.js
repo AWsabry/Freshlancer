@@ -17,8 +17,8 @@ router.get('/complete-success', paymobController.completePaymentSuccess);
 router.get('/payment-status', paymobController.getPaymentStatus);
 
 // Test endpoints (protected for security)
-router.post('/test', authController.protect, paymobController.testPaymobIntegration);
-router.post('/test-webhook', authController.protect, paymobController.testWebhook);
+router.post('/test', paymobController.testPaymobIntegration);
+// router.post('/test-webhook', authController.protect, paymobController.testWebhook);
 
 // All routes below require authentication
 router.use(authController.protect);

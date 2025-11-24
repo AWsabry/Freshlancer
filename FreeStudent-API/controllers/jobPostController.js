@@ -1,4 +1,5 @@
 const JobPost = require('../models/jobPostModel');
+const JobApplication = require('../models/jobApplicationModel');
 const AppError = require('../utils/AppError');
 const catchAsync = require('../utils/catchAsync');
 
@@ -228,6 +229,58 @@ exports.closeJobPost = catchAsync(async (req, res, next) => {
 
   if (jobPost.status !== 'open' && jobPost.status !== 'in-progress') {
     return next(new AppError('Job post is already closed', 400));
+  }
+
+  // If status is 'cancelled', automatically withdraw all applications for this job
+  if (status === 'cancelled') {
+    const applicationsToWithdraw = await JobApplication.find({
+      jobPost: req.params.id,
+      status: { $nin: ['withdrawn', 'accepted'] }, // Don't withdraw already withdrawn or accepted applications
+    });
+
+    // Update all applicable applications to 'withdrawn'
+    await JobApplication.updateMany(
+      {
+        jobPost: req.params.id,
+        status: { $nin: ['withdrawn', 'accepted'] },
+      },
+      {
+        $set: {
+          status: 'withdrawn',
+          withdrawnAt: Date.now(),
+          withdrawalReason: 'Job was withdrawn by client',
+        },
+      }
+    );
+
+    console.log(
+      `Automatically withdrew ${applicationsToWithdraw.length} applications for cancelled job ${req.params.id}`
+    );
+  }
+
+  // If status is 'completed', automatically reject all non-accepted applications
+  if (status === 'completed') {
+    const applicationsToReject = await JobApplication.find({
+      jobPost: req.params.id,
+      status: { $nin: ['rejected', 'accepted', 'withdrawn'] }, // Don't reject already rejected, accepted, or withdrawn applications
+    });
+
+    // Update all applicable applications to 'rejected'
+    await JobApplication.updateMany(
+      {
+        jobPost: req.params.id,
+        status: { $nin: ['rejected', 'accepted', 'withdrawn'] },
+      },
+      {
+        $set: {
+          status: 'rejected',
+        },
+      }
+    );
+
+    console.log(
+      `Automatically rejected ${applicationsToReject.length} applications for completed job ${req.params.id}`
+    );
   }
 
   const updatedJobPost = await JobPost.findByIdAndUpdate(

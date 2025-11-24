@@ -142,7 +142,32 @@ const Applications = () => {
                   </Badge>
                 )}
               </div>
+              {/* Job Category */}
+              <div className="flex items-center gap-2">
+              {application.jobPost?.category && (
+                <Badge variant="default">{application.jobPost.category}</Badge>
+              )}
+                {/* Premium + Contact Unlocked Badge */}
+                {isPremium && application.contactUnlockedByClient && (
+                  <Badge variant="success" className="flex items-center gap-1">
+                    <Unlock className="w-3 h-3" />
+                    Contact Unlocked
+                  </Badge>
+                )}
+              </div>
+
             </div>
+
+            {/* Withdrawal Notice - Show if withdrawn by client */}
+            {application.status === 'withdrawn' &&
+             application.withdrawalReason === 'Job was withdrawn by client' && (
+              <div className="mb-3 p-3 bg-orange-50 border border-orange-200 rounded-lg">
+                <p className="text-sm text-orange-800 flex items-center gap-2">
+                  <AlertCircle className="w-4 h-4" />
+                  This job was withdrawn by the client
+                </p>
+              </div>
+            )}
 
           {/* Company Info - Only for Premium Users */}
           {isPremium && application.jobPost?.client && (
@@ -168,7 +193,6 @@ const Applications = () => {
             {/* Proposed Budget */}
             {application.proposedBudget && (
               <div className="flex items-center gap-2 text-gray-600">
-                <DollarSign className="w-5 h-5 text-green-600" />
                 <div>
                   <p className="text-xs text-gray-500">Your Bid</p>
                   <p className="font-semibold text-green-600">
@@ -205,7 +229,6 @@ const Applications = () => {
             {/* Job Budget Range - Only for Premium Users */}
             {isPremium && application.jobPost?.budget && (
               <div className="flex items-center gap-2 text-gray-600">
-                <DollarSign className="w-5 h-5 text-gray-500" />
                 <div>
                   <p className="text-xs text-gray-500">Job Budget</p>
                   <p className="font-semibold text-sm">
@@ -218,7 +241,6 @@ const Applications = () => {
             {/* Premium Upgrade for Budget - Free Users */}
             {!isPremium && (
               <div className="flex items-center gap-2 text-gray-600">
-                <DollarSign className="w-5 h-5 text-gray-400" />
                 <div>
                   <p className="text-xs text-gray-500">Job Budget</p>
                   <p className="font-semibold text-sm text-gray-400 italic">
@@ -251,12 +273,7 @@ const Applications = () => {
             </div>
           )}
 
-          {/* Job Category */}
-          {application.jobPost?.category && (
-            <div className="mb-3">
-              <Badge variant="default">{application.jobPost.category}</Badge>
-            </div>
-          )}
+
         </div>
       </div>
 
@@ -317,7 +334,7 @@ const Applications = () => {
                     onClick={() => setStatusFilter('all')}
                     className={`px-4 py-2 rounded-lg text-sm font-medium transition ${
                       statusFilter === 'all'
-                        ? 'bg-primary-600 text-white'
+                        ? 'bg-primary-600 text-black'
                         : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
                     }`}
                   >
@@ -382,16 +399,7 @@ const Applications = () => {
                     ? 'No applications'
                     : `No ${statusFilter} applications`}
                 </p>
-                {statusFilter !== 'all' && (
-                  <Button
-                    variant="secondary"
-                    size="sm"
-                    onClick={() => setStatusFilter('all')}
-                    className="mt-3"
-                  >
-                    View All Applications
-                  </Button>
-                )}
+  
               </div>
             </Card>
           ) : (

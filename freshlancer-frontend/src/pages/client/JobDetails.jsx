@@ -1,11 +1,12 @@
-import React from 'react';
+import React, { useState } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
-import { useQuery } from '@tanstack/react-query';
+import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { jobService } from '../../services/jobService';
 import Button from '../../components/common/Button';
 import Card from '../../components/common/Card';
 import Badge from '../../components/common/Badge';
 import Loading from '../../components/common/Loading';
+import Modal from '../../components/common/Modal';
 import {
   ArrowLeft,
   Edit2,
@@ -15,16 +16,49 @@ import {
   MapPin,
   Clock,
   Briefcase,
+  AlertCircle,
+  CheckCircle,
 } from 'lucide-react';
 
 const JobDetails = () => {
   const { id } = useParams();
   const navigate = useNavigate();
+  const queryClient = useQueryClient();
+  const [withdrawModalOpen, setWithdrawModalOpen] = useState(false);
+  const [completeModalOpen, setCompleteModalOpen] = useState(false);
 
   // Fetch job details
   const { data: jobData, isLoading } = useQuery({
     queryKey: ['job', id],
     queryFn: () => jobService.getJob(id),
+  });
+
+  // Withdraw mutation (close job as cancelled)
+  const withdrawMutation = useMutation({
+    mutationFn: () => jobService.closeJob(id, { status: 'cancelled' }),
+    onSuccess: () => {
+      queryClient.invalidateQueries(['job', id]);
+      queryClient.invalidateQueries(['myJobs']);
+      setWithdrawModalOpen(false);
+      alert('Job withdrawn successfully! All applications have been marked as withdrawn.');
+    },
+    onError: (error) => {
+      alert(error.message || 'Failed to withdraw job');
+    },
+  });
+
+  // Complete mutation (close job as completed)
+  const completeMutation = useMutation({
+    mutationFn: () => jobService.closeJob(id, { status: 'completed' }),
+    onSuccess: () => {
+      queryClient.invalidateQueries(['job', id]);
+      queryClient.invalidateQueries(['myJobs']);
+      setCompleteModalOpen(false);
+      alert('Job marked as completed! All non-accepted applications have been rejected.');
+    },
+    onError: (error) => {
+      alert(error.message || 'Failed to complete job');
+    },
   });
 
   const getStatusBadge = (status) => {
@@ -97,8 +131,7 @@ const JobDetails = () => {
             <div>
               <p className="text-sm text-gray-600 mb-1">Budget</p>
               <div className="flex items-center gap-1 text-lg font-semibold text-green-600">
-                <DollarSign className="w-5 h-5" />
-                ${job.budget.min} - ${job.budget.max}
+                {job.budget.currency} {job.budget.min} - {job.budget.max}
               </div>
             </div>
           )}
@@ -119,7 +152,7 @@ const JobDetails = () => {
         {/* Description */}
         <div className="mb-6">
           <h2 className="text-xl font-bold mb-3">Job Description</h2>
-          <p className="text-gray-700 whitespace-pre-line">{job.description}</p>
+          <p className="text-gray-700 whitespace-pre-line break-words overflow-wrap-anywhere">{job.description}</p>
         </div>
 
         {/* Skills Required */}
@@ -171,7 +204,7 @@ const JobDetails = () => {
         </div>
 
         {/* Action Buttons */}
-        <div className="pt-6 border-t flex gap-3">
+        <div className="pt-6 border-t flex flex-wrap gap-3">
           <Button
             variant="primary"
             onClick={() => navigate(`/client/jobs/${job._id}/edit`)}
@@ -189,14 +222,119 @@ const JobDetails = () => {
             <Users className="w-5 h-5" />
             View Applications ({job.applicationsCount || 0})
           </Button>
-          <Button
-            variant="secondary"
-            onClick={() => navigate('/client/jobs')}
-          >
-            Back to My Jobs
-          </Button>
+
+          {/* Show Complete and Withdraw buttons only for open jobs */}
+          {job.status === 'open' && (
+            <>
+              <Button
+                variant="success"
+                onClick={() => setCompleteModalOpen(true)}
+                className="flex items-center gap-2"
+              >
+                <CheckCircle className="w-5 h-5" />
+                Mark as Completed
+              </Button>
+              <Button
+                variant="warning"
+                onClick={() => setWithdrawModalOpen(true)}
+                className="flex items-center gap-2"
+              >
+                <AlertCircle className="w-5 h-5" />
+                Withdraw Job
+              </Button>
+            </>
+          )}
+
+
         </div>
       </Card>
+
+      {/* Withdraw Confirmation Modal */}
+      <Modal
+        isOpen={withdrawModalOpen}
+        onClose={() => setWithdrawModalOpen(false)}
+        title="Withdraw Job Post"
+      >
+        <div className="space-y-4">
+          <p className="text-gray-700">
+            Are you sure you want to withdraw the job post "{job?.title}"?
+          </p>
+          <p className="text-sm text-orange-600">
+            This will:
+          </p>
+          <ul className="list-disc list-inside text-sm text-gray-600 space-y-1">
+            <li>Close the job as cancelled</li>
+            <li>Mark all applications for this job as withdrawn</li>
+            <li>Students will see their applications as withdrawn in their view</li>
+          </ul>
+          <p className="text-sm text-red-600 font-medium">
+            This action cannot be undone.
+          </p>
+
+          <div className="flex gap-3 pt-4">
+            <Button
+              variant="secondary"
+              onClick={() => setWithdrawModalOpen(false)}
+              className="flex-1"
+            >
+              Cancel
+            </Button>
+            <Button
+              variant="warning"
+              onClick={() => withdrawMutation.mutate()}
+              loading={withdrawMutation.isPending}
+              disabled={withdrawMutation.isPending}
+              className="flex-1"
+            >
+              Withdraw Job
+            </Button>
+          </div>
+        </div>
+      </Modal>
+
+      {/* Complete Confirmation Modal */}
+      <Modal
+        isOpen={completeModalOpen}
+        onClose={() => setCompleteModalOpen(false)}
+        title="Mark Job as Completed"
+      >
+        <div className="space-y-4">
+          <p className="text-gray-700">
+            Are you sure you want to mark the job post "{job?.title}" as completed?
+          </p>
+          <p className="text-sm text-blue-600">
+            This will:
+          </p>
+          <ul className="list-disc list-inside text-sm text-gray-600 space-y-1">
+            <li>Close the job as completed</li>
+            <li>Reject all pending and reviewed applications</li>
+            <li>Keep accepted applications as accepted</li>
+            <li>Students will see their non-accepted applications as rejected</li>
+          </ul>
+          <p className="text-sm text-red-600 font-medium">
+            This action cannot be undone.
+          </p>
+
+          <div className="flex gap-3 pt-4">
+            <Button
+              variant="secondary"
+              onClick={() => setCompleteModalOpen(false)}
+              className="flex-1"
+            >
+              Cancel
+            </Button>
+            <Button
+              variant="success"
+              onClick={() => completeMutation.mutate()}
+              loading={completeMutation.isPending}
+              disabled={completeMutation.isPending}
+              className="flex-1"
+            >
+              Mark as Completed
+            </Button>
+          </div>
+        </div>
+      </Modal>
     </div>
   );
 };

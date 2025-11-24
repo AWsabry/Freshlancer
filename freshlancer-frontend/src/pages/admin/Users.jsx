@@ -23,6 +23,7 @@ import {
   Download,
   ExternalLink,
 } from 'lucide-react';
+import { API_BASE_URL } from '../../config/env';
 
 const Users = () => {
   const [searchParams, setSearchParams] = useSearchParams();
@@ -664,7 +665,7 @@ const Users = () => {
                       <label className="text-sm font-medium text-gray-500">CV/Resume</label>
                       <div className="mt-1">
                         <a
-                          href={`http://localhost:8080${selectedUser.studentProfile.cvUrl}`}
+                          href={`${API_BASE_URL}${selectedUser.studentProfile.cvUrl}`}
                           target="_blank"
                           rel="noopener noreferrer"
                           className="inline-flex items-center gap-2 text-primary-600 hover:text-primary-700"
@@ -721,7 +722,7 @@ const Users = () => {
                           </div>
                           <div className="flex gap-2 mt-3">
                             <a
-                              href={`http://localhost:8080${verification.documentUrl}`}
+                              href={`${API_BASE_URL}${verification.documentUrl}`}
                               target="_blank"
                               rel="noopener noreferrer"
                               className="inline-flex items-center gap-2 px-3 py-2 bg-primary-600 text-white rounded-lg hover:bg-primary-700 text-sm"
@@ -730,7 +731,7 @@ const Users = () => {
                               View Document
                             </a>
                             <a
-                              href={`http://localhost:8080${verification.documentUrl}`}
+                              href={`${API_BASE_URL}${verification.documentUrl}`}
                               download={verification.fileName}
                               className="inline-flex items-center gap-2 px-3 py-2 bg-gray-600 text-white rounded-lg hover:bg-gray-700 text-sm"
                             >

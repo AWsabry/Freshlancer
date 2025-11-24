@@ -27,6 +27,7 @@ import StudentMessages from './pages/student/Messages';
 import StudentNotifications from './pages/student/Notifications';
 import StudentProfile from './pages/student/Profile';
 import StudentReviews from './pages/student/Reviews';
+import StudentTransactions from './pages/student/Transactions';
 
 // Client pages
 import ClientDashboard from './pages/client/Dashboard';
@@ -92,6 +93,7 @@ function App() {
         <Route path="notifications" element={<StudentNotifications />} />
         <Route path="profile" element={<StudentProfile />} />
         <Route path="reviews" element={<StudentReviews />} />
+        <Route path="transactions" element={<StudentTransactions />} />
       </Route>
 
       {/* Client routes */}

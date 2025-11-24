@@ -602,60 +602,110 @@ exports.testWebhook = catchAsync(async (req, res, next) => {
 });
 
 // Test endpoint to verify Paymob integration
+// Test endpoint to receive and log Paymob transaction callbacks
 exports.testPaymobIntegration = catchAsync(async (req, res, next) => {
-  // Test data
-  const testPaymentData = {
-    amount: 100, // 100 EGP
-    currency: 'EGP',
-    items: [{
-      name: 'Test Item',
-      amount: 100,
-      description: 'Test payment integration',
-      quantity: 1,
-    }],
-    billingData: {
-      firstName: 'Test',
-      lastName: 'User',
-      email: 'test@example.com',
-      phoneNumber: '+201000000000',
-      apartment: 'NA',
-      floor: 'NA',
-      street: 'Test Street',
-      building: 'NA',
-      country: 'EGY',
-      state: 'NA',
-    },
-    customer: {
-      firstName: 'Test',
-      lastName: 'User',
-      email: 'test@example.com',
-      phone: '+201000000000',
-      extras: {
-        testMode: true,
-      },
-    },
-  };
+  console.log('\n========================================');
+  console.log('🔔 PAYMOB TRANSACTION CALLBACK RECEIVED');
+  console.log('========================================');
+  console.log('Timestamp:', new Date().toISOString());
 
-  try {
-    const result = await paymobService.createPaymentIntention(testPaymentData);
+  // console.log('\n📦 FULL REQUEST BODY:');
+  // console.log(JSON.stringify(req.body, null, 2));
 
-    res.status(200).json({
-      status: 'success',
-      message: 'Paymob integration test successful',
-      data: {
-        intentionId: result.intentionId,
-        clientSecret: result.clientSecret,
-        paymentUrl: result.paymentUrl,
-        fullResponse: result.data,
-      },
-      note: 'This is a test payment intention. Use the paymentUrl to complete the payment in test mode.',
-    });
-  } catch (error) {
-    res.status(500).json({
-      status: 'error',
-      message: 'Paymob integration test failed',
-      error: error.message,
-      details: error.response?.data || null,
-    });
+  // console.log('\n📋 REQUEST HEADERS:');
+  // console.log(JSON.stringify(req.headers, null, 2));
+
+  console.log('\n🔍 QUERY PARAMETERS:');
+  console.log(JSON.stringify(req.query, null, 2));
+
+  // Extract key information from Paymob callback structure
+  if (req.body) {
+    const { type, obj, issuer_bank, transaction_processed_callback_responses } = req.body;
+
+    console.log('\n🎯 PAYMOB CALLBACK STRUCTURE:');
+    console.log('- Callback Type:', type || 'N/A');
+    console.log('- Issuer Bank:', issuer_bank || 'N/A');
+
+    if (obj) {
+      console.log('\n💳 TRANSACTION OBJECT (obj):');
+      console.log('- Transaction ID:', obj.id || 'N/A');
+      console.log('- Pending:', obj.pending);
+      console.log('- Amount (cents):', obj.amount_cents || 'N/A');
+      console.log('- Success:', obj.success);
+      console.log('- Is 3D Secure:', obj.is_3d_secure);
+      console.log('- Integration ID:', obj.integration_id || 'N/A');
+      console.log('- Profile ID:', obj.profile_id || 'N/A');
+      console.log('- Currency:', obj.currency || 'N/A');
+      console.log('- Created At:', obj.created_at || 'N/A');
+      console.log('- Is Live:', obj.is_live);
+      console.log('- Owner ID:', obj.owner || 'N/A');
+
+      if (obj.order) {
+        console.log('\n📦 ORDER DETAILS (obj.order):');
+        console.log('- Order ID:', obj.order.id || 'N/A');
+        console.log('- Order Created At:', obj.order.created_at || 'N/A');
+        console.log('- Delivery Needed:', obj.order.delivery_needed);
+        console.log('- Amount (cents):', obj.order.amount_cents || 'N/A');
+        console.log('- Currency:', obj.order.currency || 'N/A');
+        console.log('- Paid Amount (cents):', obj.order.paid_amount_cents || 'N/A');
+        console.log('- Payment Method:', obj.order.payment_method || 'N/A');
+        console.log('- Merchant Order ID:', obj.order.merchant_order_id || 'N/A');
+
+        if (obj.order.shipping_data) {
+          console.log('\n📮 SHIPPING DATA (obj.order.shipping_data):');
+          console.log('- First Name:', obj.order.shipping_data.first_name || 'N/A');
+          console.log('- Last Name:', obj.order.shipping_data.last_name || 'N/A');
+          console.log('- Email:', obj.order.shipping_data.email || 'N/A');
+          console.log('- Phone:', obj.order.shipping_data.phone_number || 'N/A');
+          console.log('- Country:', obj.order.shipping_data.country || 'N/A');
+        }
+
+        if (obj.order.merchant) {
+          console.log('\n🏪 MERCHANT INFO (obj.order.merchant):');
+          console.log('- Merchant ID:', obj.order.merchant.id || 'N/A');
+          console.log('- Company Name:', obj.order.merchant.company_name || 'N/A');
+          console.log('- Country:', obj.order.merchant.country || 'N/A');
+        }
+      }
+
+      if (obj.source_data) {
+        console.log('\n💳 CARD/SOURCE DATA (obj.source_data):');
+        console.log('- Type:', obj.source_data.type || 'N/A');
+        console.log('- Sub Type:', obj.source_data.sub_type || 'N/A');
+        console.log('- PAN (Last 4):', obj.source_data.pan || 'N/A');
+      }
+
+      if (obj.payment_key_claims) {
+        console.log('\n🔑 PAYMENT KEY CLAIMS (obj.payment_key_claims):');
+        console.log('- User ID:', obj.payment_key_claims.user_id || 'N/A');
+        console.log('- Amount (cents):', obj.payment_key_claims.amount_cents || 'N/A');
+        console.log('- Currency:', obj.payment_key_claims.currency || 'N/A');
+        console.log('- Order ID:', obj.payment_key_claims.order_id || 'N/A');
+        console.log('- Integration ID:', obj.payment_key_claims.integration_id || 'N/A');
+        console.log('- Next Payment Intention:', obj.payment_key_claims.next_payment_intention || 'N/A');
+      }
+
+      if (obj.data) {
+        console.log('\n📊 TRANSACTION DATA (obj.data):');
+        console.log('- Gateway Integration PK:', obj.data.gateway_integration_pk || 'N/A');
+        console.log('- Klass:', obj.data.klass || 'N/A');
+        console.log('- MIGS Result:', obj.data.migs_result || 'N/A');
+        console.log('- Transaction Response Code:', obj.data.txn_response_code || 'N/A');
+        console.log('- Message:', obj.data.message || 'N/A');
+        console.log('- Card Type:', obj.data.card_type || 'N/A');
+        console.log('- Card Number:', obj.data.card_num || 'N/A');
+        console.log('- Receipt No:', obj.data.receipt_no || 'N/A');
+        console.log('- Authorize ID:', obj.data.authorize_id || 'N/A');
+      }
+    }
   }
+
+  console.log('\n========================================\n');
+
+  // Send success response to Paymob
+  res.status(200).json({
+    status: 'success',
+    message: 'Transaction callback received and logged successfully',
+    timestamp: new Date().toISOString(),
+  });
 });

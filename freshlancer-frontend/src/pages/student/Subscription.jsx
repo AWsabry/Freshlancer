@@ -131,20 +131,20 @@ const Subscription = () => {
               <div className="inline-flex rounded-lg border border-gray-300 p-1 bg-gray-50">
                 <button
                   onClick={() => setSelectedCurrency('USD')}
-                  className={`px-6 py-2 rounded-md font-medium transition-all ${
+                  className={`px-6 py-2 rounded-md font-medium transition-all border ${
                     selectedCurrency === 'USD'
-                      ? 'bg-primary-500 text-white shadow-md'
-                      : 'text-gray-700 hover:bg-gray-100'
+                      ? 'bg-primary-500 text-[#8904aa] border-primary-500 shadow-md'
+                      : 'text-gray-700 border-transparent hover:bg-gray-100'
                   }`}
                 >
                   USD ($)
                 </button>
                 <button
                   onClick={() => setSelectedCurrency('EGP')}
-                  className={`px-6 py-2 rounded-md font-medium transition-all ${
+                  className={`px-6 py-2 rounded-md font-medium transition-all border ${
                     selectedCurrency === 'EGP'
-                      ? 'bg-primary-500 text-white shadow-md'
-                      : 'text-gray-700 hover:bg-gray-100'
+                      ? 'bg-primary-500 text-[#8904aa] border-primary-500 shadow-md'
+                      : 'text-gray-700 border-transparent hover:bg-gray-100'
                   }`}
                 >
                   EGP (E£)

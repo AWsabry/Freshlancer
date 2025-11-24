@@ -17,6 +17,7 @@ import {
   Users,
   XCircle,
   CheckCircle,
+  AlertCircle,
 } from 'lucide-react';
 
 const Jobs = () => {
@@ -24,6 +25,9 @@ const Jobs = () => {
   const queryClient = useQueryClient();
   const [deleteModalOpen, setDeleteModalOpen] = useState(false);
   const [jobToDelete, setJobToDelete] = useState(null);
+  const [withdrawModalOpen, setWithdrawModalOpen] = useState(false);
+  const [jobToWithdraw, setJobToWithdraw] = useState(null);
+  const [statusFilter, setStatusFilter] = useState('all');
 
   // Fetch client's jobs
   const { data, isLoading } = useQuery({
@@ -45,14 +49,39 @@ const Jobs = () => {
     },
   });
 
+  // Withdraw mutation (close job as cancelled)
+  const withdrawMutation = useMutation({
+    mutationFn: (jobId) => jobService.closeJob(jobId, { status: 'cancelled' }),
+    onSuccess: () => {
+      queryClient.invalidateQueries(['myJobs']);
+      setWithdrawModalOpen(false);
+      setJobToWithdraw(null);
+      alert('Job withdrawn successfully! All applications have been marked as withdrawn.');
+    },
+    onError: (error) => {
+      alert(error.message || 'Failed to withdraw job');
+    },
+  });
+
   const handleDelete = (job) => {
     setJobToDelete(job);
     setDeleteModalOpen(true);
   };
 
+  const handleWithdraw = (job) => {
+    setJobToWithdraw(job);
+    setWithdrawModalOpen(true);
+  };
+
   const confirmDelete = () => {
     if (jobToDelete) {
       deleteMutation.mutate(jobToDelete._id);
+    }
+  };
+
+  const confirmWithdraw = () => {
+    if (jobToWithdraw) {
+      withdrawMutation.mutate(jobToWithdraw._id);
     }
   };
 
@@ -73,6 +102,19 @@ const Jobs = () => {
 
   const jobs = data?.data?.jobPosts || [];
 
+  // Filter jobs based on status
+  const filteredJobs = statusFilter === 'all'
+    ? jobs
+    : jobs.filter(job => job.status === statusFilter);
+
+  // Count jobs by status (only open, completed, and cancelled)
+  const statusCounts = {
+    all: jobs.length,
+    open: jobs.filter(j => j.status === 'open').length,
+    completed: jobs.filter(j => j.status === 'completed').length,
+    cancelled: jobs.filter(j => j.status === 'cancelled').length,
+  };
+
   return (
     <div className="space-y-6">
       {/* Header */}
@@ -91,22 +133,74 @@ const Jobs = () => {
         </Button>
       </div>
 
+      {/* Status Filter Tabs */}
+      <Card>
+        <div className="flex gap-2 overflow-x-auto">
+          <button
+            onClick={() => setStatusFilter('all')}
+            className={`px-4 py-2 rounded-lg font-medium transition-colors whitespace-nowrap ${
+              statusFilter === 'all'
+                ? 'bg-primary-600 text-black'
+                : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
+            }`}
+          >
+            All Jobs ({statusCounts.all})
+          </button>
+          <button
+            onClick={() => setStatusFilter('open')}
+            className={`px-4 py-2 rounded-lg font-medium transition-colors whitespace-nowrap ${
+              statusFilter === 'open'
+                ? 'bg-green-600 text-white'
+                : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
+            }`}
+          >
+            Open ({statusCounts.open})
+          </button>
+          <button
+            onClick={() => setStatusFilter('completed')}
+            className={`px-4 py-2 rounded-lg font-medium transition-colors whitespace-nowrap ${
+              statusFilter === 'completed'
+                ? 'bg-gray-600 text-white'
+                : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
+            }`}
+          >
+            Completed ({statusCounts.completed})
+          </button>
+          <button
+            onClick={() => setStatusFilter('cancelled')}
+            className={`px-4 py-2 rounded-lg font-medium transition-colors whitespace-nowrap ${
+              statusFilter === 'cancelled'
+                ? 'bg-red-600 text-white'
+                : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
+            }`}
+          >
+            Withdrawn ({statusCounts.cancelled})
+          </button>
+        </div>
+      </Card>
+
       {/* Jobs List */}
-      {jobs.length === 0 ? (
+      {filteredJobs.length === 0 ? (
         <Card>
           <div className="text-center py-12">
-            <p className="text-gray-600 mb-4">You haven't posted any jobs yet.</p>
-            <Button
-              variant="primary"
-              onClick={() => navigate('/client/jobs/new')}
-            >
-              Post Your First Job
-            </Button>
+            <p className="text-gray-600 mb-4">
+              {jobs.length === 0
+                ? "You haven't posted any jobs yet."
+                : `No ${statusFilter === 'all' ? '' : statusFilter} jobs found.`}
+            </p>
+            {jobs.length === 0 && (
+              <Button
+                variant="primary"
+                onClick={() => navigate('/client/jobs/new')}
+              >
+                Post Your First Job
+              </Button>
+            )}
           </div>
         </Card>
       ) : (
         <div className="space-y-4">
-          {jobs.map((job) => (
+          {filteredJobs.map((job) => (
             <Card key={job._id}>
               <div className="flex items-start justify-between">
                 <div className="flex-1">
@@ -130,11 +224,10 @@ const Jobs = () => {
                     {/* Budget */}
                     {job.budget && (
                       <div className="flex items-center gap-2 text-gray-600">
-                        <DollarSign className="w-5 h-5 text-green-600" />
                         <div>
                           <p className="text-xs text-gray-500">Budget</p>
                           <p className="font-semibold text-green-600">
-                            ${job.budget.min} - ${job.budget.max}
+                          {job.budget.currency} {job.budget.min} - {job.budget.max}
                           </p>
                         </div>
                       </div>
@@ -207,7 +300,7 @@ const Jobs = () => {
               {/* Actions */}
               <div className="flex gap-2 pt-4 border-t">
                 <Button
-                  variant="secondary"
+                  variant="primary"
                   size="sm"
                   onClick={() => navigate(`/client/jobs/${job._id}`)}
                   className="flex items-center gap-2"
@@ -225,16 +318,31 @@ const Jobs = () => {
                   <Edit2 className="w-4 h-4" />
                   Edit
                 </Button>
-                <Button
-                  variant="danger"
-                  size="sm"
-                  onClick={() => handleDelete(job)}
-                  className="flex items-center gap-2"
-                  disabled={job.applicationsCount > 0}
-                >
-                  <Trash2 className="w-4 h-4" />
-                  Delete
-                </Button>
+
+                {/* Show Withdraw button if job has applications, otherwise show Delete button */}
+                {job.applicationsCount > 0 ? (
+                  <Button
+                    variant="warning"
+                    size="sm"
+                    onClick={() => handleWithdraw(job)}
+                    className="flex items-center gap-2"
+                    disabled={job.status === 'completed' || job.status === 'cancelled'}
+                  >
+                    <AlertCircle className="w-4 h-4" />
+                    Withdraw Job
+                  </Button>
+                ) : (
+                  <Button
+                    variant="danger"
+                    size="sm"
+                    onClick={() => handleDelete(job)}
+                    className="flex items-center gap-2"
+                    disabled={job.status === 'completed' || job.status === 'cancelled'}
+                  >
+                    <Trash2 className="w-4 h-4" />
+                    Delete
+                  </Button>
+                )}
               </div>
             </Card>
           ))}
@@ -271,6 +379,49 @@ const Jobs = () => {
               className="flex-1"
             >
               Delete Job
+            </Button>
+          </div>
+        </div>
+      </Modal>
+
+      {/* Withdraw Confirmation Modal */}
+      <Modal
+        isOpen={withdrawModalOpen}
+        onClose={() => setWithdrawModalOpen(false)}
+        title="Withdraw Job Post"
+      >
+        <div className="space-y-4">
+          <p className="text-gray-700">
+            Are you sure you want to withdraw the job post "{jobToWithdraw?.title}"?
+          </p>
+          <p className="text-sm text-orange-600">
+            This will:
+          </p>
+          <ul className="list-disc list-inside text-sm text-gray-600 space-y-1">
+            <li>Close the job as cancelled</li>
+            <li>Mark all applications for this job as withdrawn</li>
+            <li>Students will see their applications as withdrawn in their view</li>
+          </ul>
+          <p className="text-sm text-red-600 font-medium">
+            This action cannot be undone.
+          </p>
+
+          <div className="flex gap-3 pt-4">
+            <Button
+              variant="secondary"
+              onClick={() => setWithdrawModalOpen(false)}
+              className="flex-1"
+            >
+              Cancel
+            </Button>
+            <Button
+              variant="warning"
+              onClick={confirmWithdraw}
+              loading={withdrawMutation.isPending}
+              disabled={withdrawMutation.isPending}
+              className="flex-1"
+            >
+              Withdraw Job
             </Button>
           </div>
         </div>

@@ -1,5 +1,22 @@
 import api from './api';
 
+const clearAllCookies = () => {
+  if (typeof document === 'undefined') return;
+
+  const cookies = document.cookie ? document.cookie.split(';') : [];
+
+  cookies.forEach((cookie) => {
+    const eqPos = cookie.indexOf('=');
+    const name = eqPos > -1 ? cookie.slice(0, eqPos).trim() : cookie.trim();
+    // Clear cookie for current path
+    document.cookie = `${name}=;expires=Thu, 01 Jan 1970 00:00:00 GMT;path=/`;
+    // Attempt to clear cookie for current domain as well
+    if (typeof window !== 'undefined') {
+      document.cookie = `${name}=;expires=Thu, 01 Jan 1970 00:00:00 GMT;path=/;domain=${window.location.hostname}`;
+    }
+  });
+};
+
 export const authService = {
   // Register
   register: async (userData) => {
@@ -25,6 +42,12 @@ export const authService = {
   logout: () => {
     localStorage.removeItem('token');
     localStorage.removeItem('user');
+
+    if (typeof sessionStorage !== 'undefined') {
+      sessionStorage.clear();
+    }
+
+    clearAllCookies();
   },
 
   // Get current user from localStorage

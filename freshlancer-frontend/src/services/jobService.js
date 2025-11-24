@@ -32,8 +32,8 @@ export const jobService = {
   },
 
   // Close job
-  closeJob: async (id) => {
-    return api.patch(`/jobs/${id}/close`);
+  closeJob: async (id, data) => {
+    return api.patch(`/jobs/${id}/close`, data);
   },
 
   // Invite student to job

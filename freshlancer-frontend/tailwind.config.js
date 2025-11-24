@@ -1,3 +1,12 @@
+const withOpacityValue = (variable) => {
+  return ({ opacityValue }) => {
+    if (opacityValue !== undefined) {
+      return `rgb(var(${variable}) / ${opacityValue})`;
+    }
+    return `rgb(var(${variable}) / 1)`;
+  };
+};
+
 /** @type {import('tailwindcss').Config} */
 export default {
   content: [
@@ -8,16 +17,16 @@ export default {
     extend: {
       colors: {
         primary: {
-          50: '#f0f9ff',
-          100: '#e0f2fe',
-          200: '#bae6fd',
-          300: '#7dd3fc',
-          400: '#38bdf8',
-          500: '#0ea5e9',
-          600: '#0284c7',
-          700: '#0369a1',
-          800: '#075985',
-          900: '#0c4a6e',
+          50: withOpacityValue('--color-primary-50'),
+          100: withOpacityValue('--color-primary-100'),
+          200: withOpacityValue('--color-primary-200'),
+          300: withOpacityValue('--color-primary-300'),
+          400: withOpacityValue('--color-primary-400'),
+          500: withOpacityValue('--color-primary-500'),
+          600: withOpacityValue('--color-primary-600'),
+          700: withOpacityValue('--color-primary-700'),
+          800: withOpacityValue('--color-primary-800'),
+          900: withOpacityValue('--color-primary-900'),
         },
       },
     },

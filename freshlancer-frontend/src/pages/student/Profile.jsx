@@ -32,6 +32,7 @@ import {
   Upload,
   Trash2,
 } from 'lucide-react';
+import { API_BASE_URL } from '../../config/env';
 
 const Profile = () => {
   const queryClient = useQueryClient();
@@ -373,7 +374,7 @@ const Profile = () => {
                       Hourly Rate
                     </label>
                     <p className="text-gray-900">
-                      {studentProfile.hourlyRate.currency} ${studentProfile.hourlyRate.min} - $
+                      {studentProfile.hourlyRate.currency} {studentProfile.hourlyRate.min} - 
                       {studentProfile.hourlyRate.max}
                     </p>
                   </div>
@@ -602,7 +603,7 @@ const Profile = () => {
                     <Button
                       variant="outline"
                       size="sm"
-                      onClick={() => window.open(`http://localhost:8080${studentProfile.resume.url}`, '_blank')}
+                  onClick={() => window.open(`${API_BASE_URL}${studentProfile.resume.url}`, '_blank')}
                     >
                       Download
                     </Button>

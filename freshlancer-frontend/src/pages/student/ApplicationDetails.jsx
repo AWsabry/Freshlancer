@@ -168,7 +168,13 @@ const ApplicationDetails = () => {
         {application.status === 'withdrawn' && (
           <Alert
             type="warning"
-            message="This application has been withdrawn."
+            message={
+              application.withdrawalReason === 'Job was withdrawn by client'
+                ? 'This job was withdrawn by the client. Your application has been automatically withdrawn.'
+                : application.withdrawalReason
+                ? `Application withdrawn: ${application.withdrawalReason}`
+                : 'This application has been withdrawn.'
+            }
             className="mb-4"
           />
         )}
