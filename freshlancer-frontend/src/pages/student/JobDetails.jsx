@@ -175,8 +175,7 @@ const JobDetails = () => {
               <p className="text-sm text-gray-600 mb-1">Budget</p>
               {isPremium ? (
                 <div className="flex items-center gap-1 text-lg font-semibold text-green-600">
-                  <DollarSign className="w-5 h-5" />
-                  {job.budget.currency} ${job.budget.min} - ${job.budget.max}
+                  {job.budget.currency} {job.budget.min} - {job.budget.max}
                 </div>
               ) : (
                 <Button
@@ -208,7 +207,7 @@ const JobDetails = () => {
         {/* Description */}
         <div className="mb-6">
           <h2 className="text-xl font-bold mb-3">Description</h2>
-          <p className="text-gray-700 whitespace-pre-line">{job.description}</p>
+          <p className="text-gray-700 whitespace-pre-line break-words overflow-wrap-anywhere">{job.description}</p>
         </div>
 
         {/* Skills Required */}
@@ -268,7 +267,6 @@ const JobDetails = () => {
                     </p>
                   </div>
                   <div className="text-right">
-                    <p className="text-sm text-gray-600 mb-1">Plan</p>
                     <Badge variant={isPremium ? 'success' : 'info'}>
                       {isPremium ? 'Premium' : 'Free'}
                     </Badge>

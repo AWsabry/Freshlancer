@@ -337,3 +337,132 @@ exports.toggleUserVerification = catchAsync(async (req, res, next) => {
     },
   });
 });
+
+// Get all students with their verification documents
+exports.getStudentsWithVerification = catchAsync(async (req, res, next) => {
+  const StudentVerification = require('../models/studentVerificationModel');
+
+  // Build query filters
+  const filter = {
+    role: 'student',
+    active: { $ne: false }, // Exclude deleted users
+  };
+
+  // Filter by verification status if provided
+  if (req.query.verificationStatus) {
+    filter['studentProfile.verificationStatus'] = req.query.verificationStatus;
+  }
+
+  // Search by name or email
+  if (req.query.search) {
+    filter.$or = [
+      { name: { $regex: req.query.search, $options: 'i' } },
+      { email: { $regex: req.query.search, $options: 'i' } },
+    ];
+  }
+
+  // Pagination
+  const page = parseInt(req.query.page, 10) || 1;
+  const limit = parseInt(req.query.limit, 10) || 20;
+  const skip = (page - 1) * limit;
+
+  // Get students
+  const students = await User.find(filter)
+    .select('name email photo studentProfile createdAt')
+    .sort('-createdAt')
+    .skip(skip)
+    .limit(limit);
+
+  // Get total count
+  const total = await User.countDocuments(filter);
+
+  // Get verification documents for each student
+  const studentsWithDocs = await Promise.all(
+    students.map(async (student) => {
+      const verificationDocs = await StudentVerification.find({
+        student: student._id,
+      }).sort('-uploadedAt');
+
+      return {
+        ...student.toObject(),
+        verificationDocuments: verificationDocs,
+      };
+    })
+  );
+
+  res.status(200).json({
+    status: 'success',
+    results: studentsWithDocs.length,
+    total,
+    page,
+    pages: Math.ceil(total / limit),
+    data: {
+      students: studentsWithDocs,
+    },
+  });
+});
+
+// Approve verification document
+exports.approveVerificationDocument = catchAsync(async (req, res, next) => {
+  const StudentVerification = require('../models/studentVerificationModel');
+
+  const document = await StudentVerification.findById(req.params.id);
+
+  if (!document) {
+    return next(new AppError('Verification document not found', 404));
+  }
+
+  if (document.status === 'approved') {
+    return next(new AppError('Document is already approved', 400));
+  }
+
+  document.status = 'approved';
+  document.reviewedBy = req.user.id;
+  document.reviewedAt = Date.now();
+  document.adminNotes = req.body.adminNotes || '';
+
+  await document.save();
+
+  res.status(200).json({
+    status: 'success',
+    data: {
+      document,
+    },
+  });
+});
+
+// Reject verification document
+exports.rejectVerificationDocument = catchAsync(async (req, res, next) => {
+  const StudentVerification = require('../models/studentVerificationModel');
+
+  const { rejectionReason, adminNotes } = req.body;
+
+  if (!rejectionReason) {
+    return next(new AppError('Rejection reason is required', 400));
+  }
+
+  const document = await StudentVerification.findById(req.params.id);
+
+  if (!document) {
+    return next(new AppError('Verification document not found', 404));
+  }
+
+  if (document.status === 'rejected') {
+    return next(new AppError('Document is already rejected', 400));
+  }
+
+  document.status = 'rejected';
+  document.reviewedBy = req.user.id;
+  document.reviewedAt = Date.now();
+  document.rejectionReason = rejectionReason;
+  document.adminNotes = adminNotes || '';
+
+  await document.save();
+
+  res.status(200).json({
+    status: 'success',
+    data: {
+      document,
+    },
+  });
+});

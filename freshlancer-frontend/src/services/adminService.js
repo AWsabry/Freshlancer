@@ -36,4 +36,17 @@ export const adminService = {
   getAllJobs: async (params = {}) => {
     return api.get('/admin/jobs', { params });
   },
+
+  // Students verification management
+  getStudentsWithVerification: async (params = {}) => {
+    return api.get('/admin/students/verification', { params });
+  },
+
+  approveVerificationDocument: async (documentId, adminNotes = '') => {
+    return api.patch(`/admin/verifications/${documentId}/approve`, { adminNotes });
+  },
+
+  rejectVerificationDocument: async (documentId, rejectionReason, adminNotes = '') => {
+    return api.patch(`/admin/verifications/${documentId}/reject`, { rejectionReason, adminNotes });
+  },
 };

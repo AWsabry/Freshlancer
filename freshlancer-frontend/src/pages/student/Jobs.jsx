@@ -155,19 +155,13 @@ const Jobs = () => {
   };
 
   const categories = [
-    { value: '', label: 'All Categories' },
-    { value: 'Web Development', label: 'Web Development' },
-    { value: 'Mobile Development', label: 'Mobile Development' },
-    { value: 'Data Science', label: 'Data Science' },
-    { value: 'Machine Learning', label: 'Machine Learning' },
-    { value: 'UI/UX Design', label: 'UI/UX Design' },
-    { value: 'Content Writing', label: 'Content Writing' },
-    { value: 'Digital Marketing', label: 'Digital Marketing' },
-    { value: 'Graphic Design', label: 'Graphic Design' },
-    { value: 'Video Editing', label: 'Video Editing' },
-    { value: 'Translation', label: 'Translation' },
-    { value: 'Research', label: 'Research' },
-    { value: 'Other', label: 'Other' },
+    { value: 'web-development', label: 'Web Development' },
+    { value: 'mobile-development', label: 'Mobile Development' },
+    { value: 'graphic-design', label: 'Graphic Design' },
+    { value: 'writing', label: 'Writing' },
+    { value: 'data-entry', label: 'Data Entry' },
+    { value: 'undergraduate-tasks', label: 'Undergraduate Tasks' },
+    { value: 'other', label: 'Other' },
   ];
 
   const applicationsRemaining =
@@ -268,6 +262,7 @@ const Jobs = () => {
                 options={categories}
                 value={category}
                 onChange={(e) => setCategory(e.target.value)}
+                // placeholder=""
               />
               {/* Add more filters as needed */}
             </div>

@@ -155,10 +155,10 @@ const Jobs = () => {
               <option value="">All Categories</option>
               <option value="web-development">Web Development</option>
               <option value="mobile-development">Mobile Development</option>
-              <option value="design">Design</option>
+              <option value="graphic-design">Graphic Design</option>
               <option value="writing">Writing</option>
-              <option value="marketing">Marketing</option>
               <option value="data-entry">Data Entry</option>
+              <option value="undergraduate-tasks">Undergraduate Tasks</option>
               <option value="other">Other</option>
             </select>
           </div>

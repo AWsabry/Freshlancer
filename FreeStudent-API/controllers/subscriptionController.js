@@ -126,7 +126,8 @@ exports.upgradeToPremium = catchAsync(async (req, res, next) => {
   }
 
   // Get currency and billing cycle from request
-  const currency = req.body.currency || 'USD';
+  const currency = req.body.currency || 'EGP';
+
   const billingCycle = req.body.billingCycle || 'monthly';
   
   console.log('Currency:', currency);
@@ -271,6 +272,17 @@ exports.upgradeToPremium = catchAsync(async (req, res, next) => {
       };
       await transaction.save();
       console.log('✅ Transaction updated with Paymob details');
+
+      // Set intentionId in cookie (clear old one first)
+      // Cookie expires in 1 hour
+      // Note: httpOnly is false to allow frontend JavaScript access
+      console.log('🍪 Setting intentionId cookie:', paymentIntention.intentionId);
+      res.cookie('paymob_intention_id', paymentIntention.intentionId, {
+        httpOnly: false, // Allow JavaScript access for frontend
+        secure: process.env.NODE_ENV === 'production',
+        maxAge: 60 * 60 * 1000, // 1 hour
+        sameSite: 'lax'
+      });
 
       // Prepare response
       const responseData = {

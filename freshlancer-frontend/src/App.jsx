@@ -50,12 +50,14 @@ import StudentProfileView from './pages/client/StudentProfileView';
 import AdminDashboard from './pages/admin/Dashboard';
 import AdminVerifications from './pages/admin/Verifications';
 import AdminUsers from './pages/admin/Users';
+import AdminStudents from './pages/admin/Students';
 import AdminApplications from './pages/admin/Applications';
 import AdminJobs from './pages/admin/Jobs';
 import AdminOffers from './pages/admin/Offers';
 import AdminContracts from './pages/admin/Contracts';
 import AdminTransactions from './pages/admin/Transactions';
 import AdminReviews from './pages/admin/Reviews';
+import AdminNotifications from './pages/admin/Notifications';
 
 function App() {
   const { isAuthenticated } = useAuthStore();
@@ -134,6 +136,7 @@ function App() {
       >
         <Route path="dashboard" element={<AdminDashboard />} />
         <Route path="users" element={<AdminUsers />} />
+        <Route path="students" element={<AdminStudents />} />
         <Route path="applications" element={<AdminApplications />} />
         <Route path="verifications" element={<AdminVerifications />} />
         <Route path="jobs" element={<AdminJobs />} />
@@ -141,6 +144,7 @@ function App() {
         <Route path="contracts" element={<AdminContracts />} />
         <Route path="transactions" element={<AdminTransactions />} />
         <Route path="reviews" element={<AdminReviews />} />
+        <Route path="notifications" element={<AdminNotifications />} />
       </Route>
 
       {/* Default redirect */}

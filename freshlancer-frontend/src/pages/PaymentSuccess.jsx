@@ -5,12 +5,37 @@ import Card from '../components/common/Card';
 import Button from '../components/common/Button';
 import { useAuthStore } from '../stores/authStore';
 import api from '../services/api';
+import paymobService from '../services/paymobService';
+
+// Helper function to get cookie value by name
+const getCookie = (name) => {
+  const value = `; ${document.cookie}`;
+  const parts = value.split(`; ${name}=`);
+  if (parts.length === 2) {
+    const cookieValue = parts.pop().split(';').shift();
+    console.log(`Cookie '${name}' found:`, cookieValue);
+    console.log(`Cookie '${name}' value:`, cookieValue);
+    return cookieValue;
+  }
+  console.log(`Cookie '${name}' not found`);
+  return null;
+};
 
 const PaymentSuccess = () => {
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
   const { user } = useAuthStore();
-  const intentionId = searchParams.get('id');
+
+  // Try to get intentionId from query parameter first, then from cookie
+  const queryIntentionId = searchParams.get('id');
+  const cookieIntentionId = getCookie('paymob_intention_id');
+  const intentionId = queryIntentionId || cookieIntentionId;
+
+  console.log('PaymentSuccess - Intention ID resolution:');
+  console.log('- From query:', queryIntentionId || 'N/A');
+  console.log('- From cookie:', cookieIntentionId || 'N/A');
+  console.log('- Using:', intentionId || 'N/A');
+
   const [isProcessing, setIsProcessing] = useState(true);
   const [error, setError] = useState(null);
 
@@ -30,14 +55,16 @@ const PaymentSuccess = () => {
   }, [intentionId]);
 
   const completePaymentSuccess = async () => {
+    console.log('Starting payment completion for intention ID:', intentionId);
+    const payMobResponse = await paymobService.checkPaymentStatus(intentionId);
+    console.log('Payment status checked:', payMobResponse);
     try {
       setIsProcessing(true);
       console.log('Completing payment success for intention:', intentionId);
-
       // Call the complete-success endpoint to upgrade subscription
       const response = await api.get(`/paymob/complete-success?id=${intentionId}`);
 
-      console.log('Payment completed successfully:', response.data);
+      console.log('Payment completed successfully:', response);
       setIsProcessing(false);
 
       // Auto-redirect after 5 seconds

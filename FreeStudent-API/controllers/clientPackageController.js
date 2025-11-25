@@ -6,26 +6,40 @@ const catchAsync = require('../utils/catchAsync');
 const AppError = require('../utils/AppError');
 const paymobService = require('../utils/paymob');
 
-// Points package configurations
+// Currency conversion rate (USD to EGP)
+const USD_TO_EGP_RATE = 49.5;
+
+// Points package configurations (in USD)
 const packageConfigs = {
   basic: {
-    name: '50 Points',
-    pointsTotal: 50,
-    price: 29.99,
+    name: '500 Points',
+    pointsTotal: 500,
+    priceUSD: 9.99,
+    profileViewsPerJob: 50,
     description: 'Perfect for small projects',
   },
   professional: {
-    name: '150 Points',
-    pointsTotal: 150,
-    price: 79.99,
-    description: 'Most popular choice - 12% savings',
+    name: '1000 Points',
+    pointsTotal: 1000,
+    priceUSD: 14.99,
+    profileViewsPerJob: 100,
+    description: 'Most popular choice',
   },
   enterprise: {
-    name: '500 Points',
-    pointsTotal: 500,
-    price: 249.99,
-    description: 'Best value for large teams - 17% savings',
+    name: '2000 Points',
+    pointsTotal: 2000,
+    priceUSD: 21.99,
+    profileViewsPerJob: 200,
+    description: 'For large Access',
   },
+};
+
+// Helper function to get price in the requested currency
+const getPriceForCurrency = (priceUSD, currency) => {
+  if (currency === 'EGP') {
+    return Math.round(priceUSD * USD_TO_EGP_RATE * 100) / 100;
+  }
+  return priceUSD;
 };
 
 // Get available packages (public)
@@ -44,13 +58,20 @@ exports.purchasePackage = catchAsync(async (req, res, next) => {
     return next(new AppError('Only clients can purchase packages', 403));
   }
 
-  const { packageType, paymentMethod, currency = 'USD' } = req.body;
+  const { packageType, paymentMethod, currency = 'USD', amount } = req.body;
 
   if (!packageConfigs[packageType]) {
     return next(new AppError('Invalid package type', 400));
   }
 
   const config = packageConfigs[packageType];
+
+  // Use the amount sent from frontend (includes processing fees) or calculate it
+  // Convert base price to the requested currency
+  const packagePrice = getPriceForCurrency(config.priceUSD, currency);
+
+  // Use the total amount from frontend (which includes processing fees)
+  const totalAmount = amount || packagePrice;
 
   // Create package (points purchase)
   const clientPackage = await ClientPackage.create({
@@ -59,19 +80,20 @@ exports.purchasePackage = catchAsync(async (req, res, next) => {
     packageName: config.name,
     pointsTotal: config.pointsTotal,
     pointsRemaining: config.pointsTotal,
+    profileViewsPerJob: config.profileViewsPerJob,
     price: {
-      amount: config.price,
+      amount: packagePrice, // Base price without fees
       currency: currency,
     },
     paymentMethod: paymentMethod || 'credit_card',
     paymentStatus: 'pending',
   });
 
-  // Create transaction
+  // Create transaction with the total amount (including fees)
   const transaction = await Transaction.create({
     user: req.user._id,
     type: 'package_purchase',
-    amount: config.price,
+    amount: totalAmount,
     currency: currency,
     status: 'pending',
     paymentMethod: paymentMethod || 'credit_card',
@@ -100,13 +122,13 @@ exports.purchasePackage = catchAsync(async (req, res, next) => {
         },
       };
 
-      // Create Paymob payment intention
+      // Create Paymob payment intention with total amount (includes processing fees)
       const paymentIntention = await paymobService.createPaymentIntention({
-        amount: config.price,
+        amount: totalAmount,
         currency: 'EGP',
         items: [{
           name: config.name,
-          amount: config.price,
+          amount: totalAmount,
           description: `${config.pointsTotal} points package`,
           quantity: 1,
         }],

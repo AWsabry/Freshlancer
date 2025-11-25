@@ -1,6 +1,5 @@
 const express = require('express');
 const paymobController = require('../controllers/paymobController');
-const authController = require('../controllers/authController');
 
 const router = express.Router();
 
@@ -13,20 +12,8 @@ router.get('/success', paymobController.paymentSuccess);
 // Complete payment success endpoint - updates everything (no authentication required)
 router.get('/complete-success', paymobController.completePaymentSuccess);
 
-// Get payment status as JSON (public - for frontend to check after redirect)
+// Payment status callback from Paymob (GET/POST) - handles redirect based on payment result
 router.get('/payment-status', paymobController.getPaymentStatus);
-
-// Test endpoints (protected for security)
-router.post('/test', paymobController.testPaymobIntegration);
-// router.post('/test-webhook', authController.protect, paymobController.testWebhook);
-
-// All routes below require authentication
-router.use(authController.protect);
-
-// Create payment intention
-router.post('/create-intention', paymobController.createPaymentIntention);
-
-// Verify payment status
-router.get('/verify/:intentionId', paymobController.verifyPayment);
+router.post('/payment-status', paymobController.getPaymentStatus);
 
 module.exports = router;

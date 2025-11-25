@@ -12,7 +12,9 @@ const Payment = () => {
   const queryClient = useQueryClient();
 
   // Get payment details from navigation state
-  const { currency, amount } = location.state || {};
+  // Force EGP currency as it's the only supported currency for Paymob
+  const { amount } = location.state || {};
+  const currency = 'EGP'; // Always use EGP - Paymob only supports EGP
 
   // Calculate fees and total
   const subtotal = amount || 0;
@@ -26,10 +28,13 @@ const Payment = () => {
         console.log('Payment response received:', response);
         console.log('Response data:', response?.data);
 
+        // After decryption, the response is the decrypted object itself
+        // Check both response.data.clientSecret and response.data.data.clientSecret for backwards compatibility
+        const clientSecret = response?.data?.clientSecret || response?.data?.data?.clientSecret;
+
         // Check if response contains Paymob client secret (for EGP payments)
-        if (response?.data?.clientSecret) {
+        if (clientSecret) {
           const publicKey = 'egy_pk_test_xgfkuiZo2us0viNDmSCVU1OvNnJQOUwv';
-          const clientSecret = response.data.clientSecret;
           const paymobUrl = `https://accept.paymob.com/unifiedcheckout/?publicKey=${publicKey}&clientSecret=${clientSecret}`;
 
           console.log('Client Secret received:', clientSecret);
@@ -73,7 +78,7 @@ const Payment = () => {
   };
 
   // Redirect back if no payment details
-  if (!currency || !amount) {
+  if (!amount) {
     return (
       <div className="max-w-2xl mx-auto mt-12">
         <Card>

@@ -84,7 +84,7 @@ const Profile = () => {
         setValue('studentProfile.availability', studentProfile.availability || 'Available');
         setValue('studentProfile.hourlyRate.min', studentProfile.hourlyRate?.min || '');
         setValue('studentProfile.hourlyRate.max', studentProfile.hourlyRate?.max || '');
-        setValue('studentProfile.hourlyRate.currency', studentProfile.hourlyRate?.currency || 'USD');
+        setValue('studentProfile.hourlyRate.currency', studentProfile.hourlyRate?.currency || 'Decide Your Currency');
         setValue('studentProfile.socialLinks.github', studentProfile.socialLinks?.github || '');
         setValue('studentProfile.socialLinks.linkedin', studentProfile.socialLinks?.linkedin || '');
         setValue('studentProfile.socialLinks.website', studentProfile.socialLinks?.website || '');

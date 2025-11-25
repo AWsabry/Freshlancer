@@ -95,6 +95,7 @@ const DashboardLayout = () => {
       return [
         ...baseItems.slice(0, 1),
         { name: 'Users', icon: Users, path: '/admin/users' },
+        { name: 'Students', icon: Shield, path: '/admin/students' },
         { name: 'Applications', icon: FileText, path: '/admin/applications' },
         { name: 'Jobs', icon: Briefcase, path: '/admin/jobs' },
         { name: 'Offers', icon: Gift, path: '/admin/offers' },
@@ -214,33 +215,48 @@ const DashboardLayout = () => {
             </h1>
           </div>
 
-          {/* Points Display for Clients */}
-          {user?.role === 'client' && userData?.data?.user?.clientProfile?.pointsRemaining !== undefined && (
-            <div className="flex items-center gap-2 bg-primary-50 border border-primary-200 rounded-lg px-4 py-2">
-              <DollarSign className="w-5 h-5 text-primary-600" />
-              <div>
-                <p className="text-xs text-primary-600 font-medium">Points</p>
-                <p className="text-lg font-bold text-[#8904aa]">
-                  {userData.data.user.clientProfile.pointsRemaining}
-                </p>
-              </div>
-            </div>
-          )}
+          <div className="flex items-center gap-4">
+            {/* Notifications Bell Icon */}
+            <Link
+              to={`/${user?.role}/notifications`}
+              className="relative p-2 text-gray-600 hover:text-gray-900 hover:bg-gray-100 rounded-full transition-colors"
+            >
+              <Bell className="w-6 h-6" />
+              {unreadCount?.data?.unreadCount > 0 && (
+                <span className="absolute top-0 right-0 flex items-center justify-center w-5 h-5 text-xs font-bold text-white bg-red-500 rounded-full">
+                  {unreadCount.data.unreadCount > 99 ? '99+' : unreadCount.data.unreadCount}
+                </span>
+              )}
+            </Link>
 
-          {/* Applications Display for Students */}
-          {user?.role === 'student' && userData?.data?.user?.studentProfile && (
-            <div className="flex items-center gap-2 bg-green-50 border border-green-200 rounded-lg px-4 py-2">
-              <Briefcase className="w-5 h-5 text-green-600" />
-              <div>
-                <p className="text-xs text-green-600 font-medium">Applications</p>
-                <p className="text-lg font-bold text-green-700">
-                  {userData.data.user.studentProfile.applicationsUsedThisMonth || 0} / {
-                    userData.data.user.studentProfile.subscriptionTier === 'premium' ? 100 : 10
-                  }
-                </p>
+            {/* Points Display for Clients */}
+            {user?.role === 'client' && userData?.data?.user?.clientProfile?.pointsRemaining !== undefined && (
+              <div className="flex items-center gap-2 bg-primary-50 border border-primary-200 rounded-lg px-4 py-2">
+                <DollarSign className="w-5 h-5 text-primary-600" />
+                <div>
+                  <p className="text-xs text-primary-600 font-medium">Points</p>
+                  <p className="text-lg font-bold text-[#8904aa]">
+                    {userData.data.user.clientProfile.pointsRemaining}
+                  </p>
+                </div>
               </div>
-            </div>
-          )}
+            )}
+
+            {/* Applications Display for Students */}
+            {user?.role === 'student' && userData?.data?.user?.studentProfile && (
+              <div className="flex items-center gap-2 bg-green-50 border border-green-200 rounded-lg px-4 py-2">
+                <Briefcase className="w-5 h-5 text-green-600" />
+                <div>
+                  <p className="text-xs text-green-600 font-medium">Applications</p>
+                  <p className="text-lg font-bold text-green-700">
+                    {userData.data.user.studentProfile.applicationsUsedThisMonth || 0} / {
+                      userData.data.user.studentProfile.subscriptionTier === 'premium' ? 100 : 10
+                    }
+                  </p>
+                </div>
+              </div>
+            )}
+          </div>
         </div>
 
         {/* Page content */}

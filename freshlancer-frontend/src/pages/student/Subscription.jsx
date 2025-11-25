@@ -13,7 +13,7 @@ import { CheckCircle, Star, Zap, CreditCard } from 'lucide-react';
 const Subscription = () => {
   const queryClient = useQueryClient();
   const navigate = useNavigate();
-  const [selectedCurrency, setSelectedCurrency] = useState('USD');
+  const [selectedCurrency, setSelectedCurrency] = useState('EGP');
 
   const { data, isLoading } = useQuery({
     queryKey: ['subscription'],
@@ -130,14 +130,12 @@ const Subscription = () => {
             <div className="flex justify-center">
               <div className="inline-flex rounded-lg border border-gray-300 p-1 bg-gray-50">
                 <button
-                  onClick={() => setSelectedCurrency('USD')}
-                  className={`px-6 py-2 rounded-md font-medium transition-all border ${
-                    selectedCurrency === 'USD'
-                      ? 'bg-primary-500 text-[#8904aa] border-primary-500 shadow-md'
-                      : 'text-gray-700 border-transparent hover:bg-gray-100'
-                  }`}
+                  disabled
+                  className="px-6 py-2 rounded-md font-medium transition-all border text-gray-400 border-transparent cursor-not-allowed opacity-60"
+                  title="USD payments not yet available"
                 >
                   USD ($)
+                  <span className="text-xs block">Coming soon</span>
                 </button>
                 <button
                   onClick={() => setSelectedCurrency('EGP')}
@@ -151,6 +149,9 @@ const Subscription = () => {
                 </button>
               </div>
             </div>
+            <p className="text-sm text-gray-600 text-center mt-3">
+              Currently, we only accept payments in Egyptian Pounds (EGP) through Paymob.
+            </p>
           </Card>
 
           <div className="grid grid-cols-1 md:grid-cols-2 gap-6">

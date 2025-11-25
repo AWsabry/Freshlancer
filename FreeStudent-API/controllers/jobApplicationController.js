@@ -14,6 +14,27 @@ exports.applyForJob = catchAsync(async (req, res, next) => {
 
   const userId = req.user._id || req.user.id;
 
+  // Check if student is verified
+  const User = require('../models/userModel');
+  const student = await User.findById(userId);
+
+  if (!student) {
+    return next(new AppError('Student not found', 404));
+  }
+
+  // Check verification status
+  const isVerified = student.studentProfile?.isVerified || false;
+  const verificationStatus = student.studentProfile?.verificationStatus || 'unverified';
+
+  if (!isVerified || verificationStatus !== 'verified') {
+    return next(
+      new AppError(
+        'You must be verified to apply for jobs. Please submit your verification documents from your profile page.',
+        403
+      )
+    );
+  }
+
   // Check if job post exists and is open
   const jobPost = await JobPost.findById(req.params.jobId);
   if (!jobPost) {
@@ -39,14 +60,6 @@ exports.applyForJob = catchAsync(async (req, res, next) => {
         400
       )
     );
-  }
-
-  // Get student user to check and update monthly application usage
-  const User = require('../models/userModel');
-  const student = await User.findById(userId);
-
-  if (!student) {
-    return next(new AppError('Student not found', 404));
   }
 
   // Check if reset date has passed and reset counter if needed
@@ -208,6 +221,7 @@ exports.getMyApplications = catchAsync(async (req, res, next) => {
 
   // Execute query
   const applications = await mongoQuery;
+  console.log("HEHEH "+ applications);
   const total = await JobApplication.countDocuments(query);
 
   res.status(200).json({

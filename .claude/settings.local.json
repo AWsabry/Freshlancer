@@ -1,0 +1,13 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(npm start)",
+      "Bash(netstat:*)",
+      "Bash(findstr:*)",
+      "Bash(taskkill //F //PID 26800)",
+      "Bash(taskkill //F //PID 30700)"
+    ],
+    "deny": [],
+    "ask": []
+  }
+}

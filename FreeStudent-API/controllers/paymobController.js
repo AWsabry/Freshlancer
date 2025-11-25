@@ -3,132 +3,7 @@ const catchAsync = require('../utils/catchAsync');
 const AppError = require('../utils/AppError');
 const Transaction = require('../models/transactionModel');
 const User = require('../models/userModel');
-
-// Create payment intention
-exports.createPaymentIntention = catchAsync(async (req, res, next) => {
-  const {
-    amount,
-    currency = 'EGP',
-    items = [],
-    billingData,
-    integrationId,
-    paymentType, // 'subscription' or 'package'
-  } = req.body;
-
-  if (!amount || amount <= 0) {
-    return next(new AppError('Amount is required and must be greater than 0', 400));
-  }
-
-  // Get user information
-  const user = await User.findById(req.user._id);
-
-  if (!user) {
-    return next(new AppError('User not found', 404));
-  }
-
-  // Prepare customer data
-  const customer = {
-    firstName: user.name?.split(' ')[0] || 'Guest',
-    lastName: user.name?.split(' ').slice(1).join(' ') || 'User',
-    email: user.email,
-    phone: user.phone || '+201000000000',
-    extras: {
-      userId: user._id.toString(),
-      userRole: user.role,
-      paymentType: paymentType || 'general',
-    },
-  };
-
-  // Create payment intention with Paymob
-  const paymentIntention = await paymobService.createPaymentIntention({
-    amount,
-    currency,
-    items: items.length > 0 ? items : [{
-      name: paymentType === 'subscription' ? 'Premium Subscription' : 'Points Package',
-      amount: amount,
-      description: `${paymentType || 'Payment'} for ${user.name}`,
-      quantity: 1,
-    }],
-    billingData,
-    customer,
-    integrationId,
-  });
-
-  // Create transaction record
-  const transaction = await Transaction.create({
-    user: req.user._id,
-    type: paymentType === 'subscription' ? 'subscription' : 'package_purchase',
-    amount,
-    currency,
-    status: 'pending',
-    paymentMethod: 'paymob',
-    description: `Paymob payment intention created`,
-    metadata: {
-      intentionId: paymentIntention.intentionId,
-      clientSecret: paymentIntention.clientSecret,
-      paymentUrl: paymentIntention.paymentUrl,
-    },
-  });
-
-  res.status(200).json({
-    status: 'success',
-    data: {
-      intentionId: paymentIntention.intentionId,
-      clientSecret: paymentIntention.clientSecret,
-      paymentUrl: paymentIntention.paymentUrl,
-      transaction: transaction._id,
-      message: 'Payment intention created successfully',
-    },
-  });
-});
-
-// Verify payment
-exports.verifyPayment = catchAsync(async (req, res, next) => {
-  const { intentionId } = req.params;
-
-  if (!intentionId) {
-    return next(new AppError('Intention ID is required', 400));
-  }
-
-  // Find transaction - payment status is updated via webhook and success callback
-  // Note: Paymob API doesn't support GET method for verification endpoint
-  const transaction = await Transaction.findOne({
-    'metadata.intentionId': intentionId,
-  }).populate('user');
-
-  if (!transaction) {
-    return next(new AppError('Transaction not found', 404));
-  }
-
-  // Map transaction status to Paymob-like status
-  let paymentStatus = 'PENDING';
-  if (transaction.status === 'completed') {
-    paymentStatus = 'PROCESSED';
-  } else if (transaction.status === 'failed') {
-    paymentStatus = 'FAILED';
-  }
-
-  const isPaid = transaction.status === 'completed';
-
-  res.status(200).json({
-    status: 'success',
-    data: {
-      intentionId,
-      paymentStatus: paymentStatus,
-      isPaid: isPaid,
-      transactionId: transaction._id,
-      amount: transaction.amount,
-      currency: transaction.currency,
-      type: transaction.type,
-      completedAt: transaction.completedAt,
-      user: transaction.user ? {
-        id: transaction.user._id,
-        name: transaction.user.name,
-        email: transaction.user.email,
-      } : null,
-    },
-  });
-});
+const { encryptCookie, decryptCookie } = require('../utils/encryption');
 
 // Handle Paymob webhook
 exports.handleWebhook = catchAsync(async (req, res, next) => {
@@ -204,17 +79,7 @@ exports.handleWebhook = catchAsync(async (req, res, next) => {
         user.studentProfile.subscriptionExpiryDate = expiryDate;
         await user.save({ validateBeforeSave: false });
 
-        // Create notification
-        await Notification.create({
-          user: user._id,
-          type: 'subscription_renewed',
-          title: 'Premium Subscription Activated',
-          message: 'Your premium subscription is now active! You can now apply to up to 100 jobs per month.',
-          relatedId: subscription._id,
-          relatedType: 'Subscription',
-          priority: 'high',
-          icon: 'success',
-        });
+        // Note: Notification will be created in completePaymentSuccess to avoid duplicates
       }
 
       console.log('Subscription activated for user:', user._id);
@@ -233,16 +98,7 @@ exports.handleWebhook = catchAsync(async (req, res, next) => {
           user.clientProfile.currentPackage = clientPackage._id;
           await user.save({ validateBeforeSave: false });
 
-          // Create notification
-          await Notification.create({
-            user: user._id,
-            type: 'system_announcement',
-            title: 'Points Added Successfully',
-            message: `${clientPackage.pointsTotal} points have been added to your account! You now have ${user.clientProfile.pointsRemaining} points available. Points never expire.`,
-            relatedId: clientPackage._id,
-            relatedType: 'ClientPackage',
-            icon: 'success',
-          });
+          // Note: Notification will be created in completePaymentSuccess to avoid duplicates
         }
 
         console.log('Package activated for user:', user._id);
@@ -258,93 +114,202 @@ exports.handleWebhook = catchAsync(async (req, res, next) => {
 
 // Get payment status as JSON (for frontend to check status)
 exports.getPaymentStatus = catchAsync(async (req, res, next) => {
-  const { id } = req.query; // Paymob sends 'id' as the intention ID
+  console.log('\n========================================');
+  console.log('🔔 PAYMOB PAYMENT STATUS CALLBACK');
+  console.log('========================================');
+  console.log('Timestamp:', new Date().toISOString());
+  console.log('Method:', req.method);
 
-  if (!id) {
-    return res.status(400).json({
-      status: 'fail',
-      message: 'Payment intention ID is required',
-    });
+  // Log full request details
+  console.log('\n📦 REQUEST BODY:');
+  console.log(JSON.stringify(req.body, null, 2));
+
+  console.log('\n🔍 QUERY PARAMETERS:');
+  console.log(JSON.stringify(req.query, null, 2));
+
+  // Paymob can send data in two ways:
+  // 1. POST with body containing {type, obj, issuer_bank}
+  // 2. GET with query parameters (flattened transaction data)
+
+  let pending, success, intentionId, transactionId;
+
+  if (req.method === 'POST' && req.body.obj) {
+    // POST request with full transaction object
+    const { type, obj } = req.body;
+
+    console.log('\n🎯 PAYMOB CALLBACK (POST):');
+    console.log('- Callback Type:', type || 'N/A');
+    console.log('- Transaction ID:', obj.id || 'N/A');
+    console.log('- Pending:', obj.pending);
+    console.log('- Success:', obj.success);
+    console.log('- Amount (cents):', obj.amount_cents || 'N/A');
+    console.log('- Currency:', obj.currency || 'N/A');
+
+    pending = obj.pending;
+    success = obj.success;
+    transactionId = obj.id;
+
+    // Extract payment intention ID
+    if (obj.payment_key_claims && obj.payment_key_claims.next_payment_intention) {
+      intentionId = obj.payment_key_claims.next_payment_intention;
+      console.log('- Payment Intention ID:', intentionId);
+    }
+  } else if (req.method === 'GET') {
+    // GET request with flattened query parameters
+    console.log('\n🎯 PAYMOB CALLBACK (GET):');
+    console.log('- Transaction ID:', req.query.id || 'N/A');
+    console.log('- Pending:', req.query.pending);
+    console.log('- Success:', req.query.success);
+    console.log('- Amount (cents):', req.query.amount_cents || 'N/A');
+    console.log('- Currency:', req.query.currency || 'N/A');
+
+    // Parse query parameters (they come as strings)
+    pending = req.query.pending === 'true';
+    success = req.query.success === 'true';
+    transactionId = req.query.id;
+
+    // Try to find intention ID from the transaction in database
+    // Paymob doesn't send intention ID in GET callback, only transaction ID
+    console.log('⚠️ Note: GET callback does not include intention ID directly');
+  } else {
+    console.log('❌ Error: Invalid callback format');
+    return res.redirect(`${process.env.FRONTEND_URL}/payment/failed?error=invalid_format`);
   }
 
-  console.log('=== PAYMENT STATUS CHECK ===');
-  console.log('Intention ID:', id);
+  console.log('\n✅ PAYMENT STATUS CHECK:');
+  console.log('- Pending:', pending);
+  console.log('- Success:', success);
 
-  try {
-    // Find transaction
-    const transaction = await Transaction.findOne({
-      'metadata.intentionId': id,
-    }).populate('user');
+  // Check if payment is successful: pending = false AND success = true
+  if (pending === false && success === true) {
+    console.log('✅ Payment Successful!');
 
-    if (!transaction) {
-      return res.status(404).json({
-        status: 'fail',
-        message: 'Transaction not found',
+    // For GET requests, we need to look up the intention ID from the transaction
+    if (!intentionId && transactionId) {
+      console.log('🔍 Looking up intention ID from transaction:', transactionId);
+      try {
+        const Transaction = require('../models/transactionModel');
+        const transaction = await Transaction.findOne({
+          'metadata.paymobTransactionId': transactionId
+        });
+
+        if (transaction && transaction.metadata && transaction.metadata.intentionId) {
+          intentionId = transaction.metadata.intentionId;
+          console.log('✅ Found intention ID:', intentionId);
+        } else {
+          console.log('⚠️ Transaction not found or no intention ID');
+        }
+      } catch (error) {
+        console.log('⚠️ Error looking up transaction:', error.message);
+      }
+    }
+
+    if (intentionId) {
+      console.log('\n🍪 SETTING COOKIE:');
+      console.log('- Cookie name: paymob_intention_id');
+      console.log('- Cookie value:', intentionId);
+      console.log('- Cookie options:', {
+        httpOnly: false,
+        secure: process.env.NODE_ENV === 'production',
+        maxAge: '1 hour (3600000ms)',
+        sameSite: 'lax'
       });
+
+      // Set encrypted cookie to be used by complete-success endpoint and frontend
+      // Note: httpOnly is false to allow frontend JavaScript access
+      const encryptedIntentionId = encryptCookie(intentionId, 1); // 1 hour expiry
+      res.cookie('paymob_intention_id', encryptedIntentionId, {
+        httpOnly: false, // Allow JavaScript access for frontend
+        secure: process.env.NODE_ENV === 'production',
+        maxAge: 60 * 60 * 1000, // 1 hour
+        sameSite: 'lax'
+      });
+
+      console.log('✅ Cookie set successfully');
+      console.log(`\n🔄 Redirecting to backend: ${process.env.BASE_URL}/api/v1/paymob/complete-success`);
+      console.log('========================================\n');
+      return res.redirect(`${process.env.BASE_URL}/api/v1/paymob/complete-success`);
+    } else {
+      console.log('⚠️ Warning: Missing intention ID, redirecting to frontend success without ID');
+      console.log('========================================\n');
+      return res.redirect(`${process.env.FRONTEND_URL}/payment/success`);
     }
+  } else {
+    console.log('❌ Payment Failed or Pending!');
 
-    console.log('Transaction found:', transaction._id);
-    console.log('Transaction status:', transaction.status);
-
-    // Return transaction status from database
-    // Note: Payment status is updated via webhook and success callback from Paymob
-    // We don't call Paymob API here as GET method is not allowed for verification
-    const isPaid = transaction.status === 'completed';
-    
-    // Map transaction status to Paymob-like status for consistency
-    let paymentStatus = 'PENDING';
-    if (transaction.status === 'completed') {
-      paymentStatus = 'PROCESSED';
-    } else if (transaction.status === 'failed') {
-      paymentStatus = 'FAILED';
-    }
-
-    return res.status(200).json({
-      status: 'success',
-      data: {
-        intentionId: id,
-        transactionId: transaction._id,
-        paymentStatus: paymentStatus,
-        isPaid: isPaid,
-        amount: transaction.amount,
-        currency: transaction.currency,
-        type: transaction.type,
-        completedAt: transaction.completedAt,
-        user: {
-          id: transaction.user._id,
-          name: transaction.user.name,
-          email: transaction.user.email,
-        },
-      },
-    });
-  } catch (error) {
-    console.error('Payment status check error:', error);
-    return res.status(500).json({
-      status: 'error',
-      message: 'Failed to check payment status',
-      error: error.message,
-    });
+    const failureReason = pending ? 'pending' : 'failed';
+    console.log(`\n🔄 Redirecting to: ${process.env.FRONTEND_URL}/payment/failed?reason=${failureReason}`);
+    console.log('========================================\n');
+    return res.redirect(`${process.env.FRONTEND_URL}/payment/failed?reason=${failureReason}`);
   }
 });
 
 // Complete payment success handler - updates everything
 exports.completePaymentSuccess = catchAsync(async (req, res, next) => {
-  const { id } = req.query; // Get intentionId from query parameter
-
   console.log('\n=== COMPLETE PAYMENT SUCCESS ===');
   console.log('Timestamp:', new Date().toISOString());
-  console.log('Intention ID:', id);
-  console.log('Query params:', req.query);
 
-  if (!id) {
-    console.log('❌ Error: Missing intention ID in query parameters');
-    return res.status(400).json({
-      status: 'fail',
-      message: 'Payment intention ID is required',
-    });
+  // Log all cookies received
+  console.log('\n🍪 ALL COOKIES RECEIVED:');
+  console.log(JSON.stringify(req.cookies, null, 2));
+
+  // Check specifically for paymob_intention_id cookie
+  console.log('\n🔍 CHECKING FOR PAYMOB COOKIE:');
+  console.log('- Cookie exists:', !!req.cookies.paymob_intention_id);
+  console.log('- Encrypted Cookie value:', req.cookies.paymob_intention_id || 'NOT FOUND');
+
+  // Decrypt cookie if it exists
+  let decryptedCookieValue = null;
+  if (req.cookies.paymob_intention_id) {
+    try {
+      decryptedCookieValue = decryptCookie(req.cookies.paymob_intention_id);
+      console.log('- Decrypted Cookie value:', decryptedCookieValue || 'DECRYPTION FAILED');
+    } catch (error) {
+      console.log('- Cookie decryption error:', error.message);
+    }
   }
 
-  const intentionId = id;
+  // Log query parameters
+  console.log('\n📋 QUERY PARAMETERS:');
+  console.log('- Query id:', req.query.id || 'N/A');
+  console.log('- All query params:', JSON.stringify(req.query, null, 2));
+
+  // Try to get intentionId from query parameter, decrypted cookie, or find the latest pending transaction
+  let intentionId = req.query.id || decryptedCookieValue;
+
+  console.log('\n✅ INTENTION ID RESOLUTION:');
+  console.log('- Source: Query =', req.query.id ? '✓' : '✗', '| Cookie =', decryptedCookieValue ? '✓' : '✗');
+  console.log('- Initial intentionId:', intentionId || 'NOT FOUND');
+
+  // If no intentionId provided, try to find the most recent pending transaction
+  if (!intentionId) {
+    console.log('⚠️ No intentionId provided, searching for latest pending transaction...');
+
+    try {
+      const latestTransaction = await Transaction.findOne({
+        status: 'pending',
+        type: { $in: ['subscription_payment', 'package_purchase'] }
+      })
+      .sort({ createdAt: -1 })
+      .limit(1);
+
+      if (latestTransaction && latestTransaction.metadata && latestTransaction.metadata.intentionId) {
+        intentionId = latestTransaction.metadata.intentionId;
+        console.log('✅ Found intentionId from latest pending transaction:', intentionId);
+      } else {
+        console.log('❌ No pending transaction found with intentionId');
+      }
+    } catch (error) {
+      console.log('❌ Error searching for transaction:', error.message);
+    }
+  }
+
+  if (!intentionId) {
+    console.log('❌ Error: Missing intention ID - could not find from query, cookie, or database');
+    return res.redirect(`${process.env.FRONTEND_URL}/payment/failed?error=missing_id`);
+  }
+
+  console.log('✅ Using Intention ID:', intentionId);
 
   try {
     // Find transaction by intention ID
@@ -354,10 +319,7 @@ exports.completePaymentSuccess = catchAsync(async (req, res, next) => {
 
     if (!transaction) {
       console.log('❌ Error: Transaction not found for intention ID:', intentionId);
-      return res.status(404).json({
-        status: 'fail',
-        message: 'Transaction not found',
-      });
+      return res.redirect(`${process.env.FRONTEND_URL}/payment/failed?error=transaction_not_found`);
     }
 
     console.log('✅ Transaction found:', transaction._id);
@@ -386,10 +348,7 @@ exports.completePaymentSuccess = catchAsync(async (req, res, next) => {
 
     if (!user) {
       console.log('❌ Error: User not found:', transaction.user);
-      return res.status(404).json({
-        status: 'fail',
-        message: 'User not found',
-      });
+      return res.redirect(`${process.env.FRONTEND_URL}/payment/failed?error=user_not_found`);
     }
 
     console.log('✅ User found:', user._id, user.email);
@@ -498,43 +457,22 @@ exports.completePaymentSuccess = catchAsync(async (req, res, next) => {
       }
     }
 
-    // Return success response
-    console.log('\n📤 RETURNING SUCCESS RESPONSE');
-    const responseData = {
-      status: 'success',
-      message: 'Payment processed successfully',
-      data: {
-        intentionId: intentionId,
-        transactionId: transaction._id,
-        isPaid: true,
-        paymentStatus: 'PROCESSED',
-        amount: transaction.amount,
-        currency: transaction.currency,
-        type: transaction.type,
-        completedAt: transaction.completedAt,
-        user: {
-          id: user._id,
-          name: user.name,
-          email: user.email,
-          subscriptionTier: user.studentProfile?.subscriptionTier || user.clientProfile?.currentPackage ? 'premium' : 'free',
-        },
-      },
-    };
+    // Clear the intention ID cookie after successful processing
+    console.log('🍪 Clearing intentionId cookie');
+    res.clearCookie('paymob_intention_id');
 
-    console.log('Response:', JSON.stringify(responseData, null, 2));
+    // Redirect to frontend success page
+    console.log('\n📤 REDIRECTING TO FRONTEND SUCCESS PAGE');
+    console.log(`Redirect URL: ${process.env.FRONTEND_URL}/payment/success`);
     console.log('=== END COMPLETE PAYMENT SUCCESS ===\n');
 
-    return res.status(200).json(responseData);
+    return res.redirect(`${process.env.FRONTEND_URL}/payment/success`);
   } catch (error) {
     console.error('❌ Payment success processing error:', error);
     console.error('Error stack:', error.stack);
     console.log('=== END COMPLETE PAYMENT SUCCESS (ERROR) ===\n');
 
-    return res.status(500).json({
-      status: 'error',
-      message: 'Failed to process payment success',
-      error: error.message,
-    });
+    return res.redirect(`${process.env.FRONTEND_URL}/payment/failed?error=processing_error`);
   }
 });
 
@@ -554,158 +492,4 @@ exports.paymentSuccess = catchAsync(async (req, res, next) => {
   // Simply redirect to frontend payment success page with the intention ID
   // The frontend will handle calling /complete-success to upgrade the subscription
   return res.redirect(`${process.env.FRONTEND_URL}/payment/success?id=${id}`);
-});
-
-// Test webhook endpoint - simulates Paymob sending webhook data
-exports.testWebhook = catchAsync(async (req, res, next) => {
-  // Sample webhook data from Paymob (based on documentation)
-  const sampleWebhookData = {
-    type: "TRANSACTION",
-    obj: {
-      id: req.body.transactionId || 192036465,
-      pending: false,
-      amount_cents: req.body.amount_cents || 100000,
-      success: true,
-      is_auth: false,
-      is_capture: false,
-      is_standalone_payment: true,
-      is_voided: false,
-      is_refunded: false,
-      is_3d_secure: true,
-      integration_id: 4097558,
-      order: {
-        id: req.body.orderId || 217503754,
-        amount_cents: req.body.amount_cents || 100000,
-        currency: "EGP",
-      },
-      created_at: new Date().toISOString(),
-      currency: "EGP",
-      success: true,
-    }
-  };
-
-  console.log('=== TESTING WEBHOOK WITH SAMPLE DATA ===');
-  console.log('Sample Webhook Data:', JSON.stringify(sampleWebhookData, null, 2));
-
-  // Process the sample webhook
-  const processedData = paymobService.processWebhook(sampleWebhookData);
-
-  console.log('Processed Data:', JSON.stringify(processedData, null, 2));
-
-  res.status(200).json({
-    status: 'success',
-    message: 'Webhook test completed',
-    sampleData: sampleWebhookData,
-    processedData,
-    note: 'Check your server console for detailed logs',
-  });
-});
-
-// Test endpoint to verify Paymob integration
-// Test endpoint to receive and log Paymob transaction callbacks
-exports.testPaymobIntegration = catchAsync(async (req, res, next) => {
-  console.log('\n========================================');
-  console.log('🔔 PAYMOB TRANSACTION CALLBACK RECEIVED');
-  console.log('========================================');
-  console.log('Timestamp:', new Date().toISOString());
-
-  // console.log('\n📦 FULL REQUEST BODY:');
-  // console.log(JSON.stringify(req.body, null, 2));
-
-  // console.log('\n📋 REQUEST HEADERS:');
-  // console.log(JSON.stringify(req.headers, null, 2));
-
-  console.log('\n🔍 QUERY PARAMETERS:');
-  console.log(JSON.stringify(req.query, null, 2));
-
-  // Extract key information from Paymob callback structure
-  if (req.body) {
-    const { type, obj, issuer_bank, transaction_processed_callback_responses } = req.body;
-
-    console.log('\n🎯 PAYMOB CALLBACK STRUCTURE:');
-    console.log('- Callback Type:', type || 'N/A');
-    console.log('- Issuer Bank:', issuer_bank || 'N/A');
-
-    if (obj) {
-      console.log('\n💳 TRANSACTION OBJECT (obj):');
-      console.log('- Transaction ID:', obj.id || 'N/A');
-      console.log('- Pending:', obj.pending);
-      console.log('- Amount (cents):', obj.amount_cents || 'N/A');
-      console.log('- Success:', obj.success);
-      console.log('- Is 3D Secure:', obj.is_3d_secure);
-      console.log('- Integration ID:', obj.integration_id || 'N/A');
-      console.log('- Profile ID:', obj.profile_id || 'N/A');
-      console.log('- Currency:', obj.currency || 'N/A');
-      console.log('- Created At:', obj.created_at || 'N/A');
-      console.log('- Is Live:', obj.is_live);
-      console.log('- Owner ID:', obj.owner || 'N/A');
-
-      if (obj.order) {
-        console.log('\n📦 ORDER DETAILS (obj.order):');
-        console.log('- Order ID:', obj.order.id || 'N/A');
-        console.log('- Order Created At:', obj.order.created_at || 'N/A');
-        console.log('- Delivery Needed:', obj.order.delivery_needed);
-        console.log('- Amount (cents):', obj.order.amount_cents || 'N/A');
-        console.log('- Currency:', obj.order.currency || 'N/A');
-        console.log('- Paid Amount (cents):', obj.order.paid_amount_cents || 'N/A');
-        console.log('- Payment Method:', obj.order.payment_method || 'N/A');
-        console.log('- Merchant Order ID:', obj.order.merchant_order_id || 'N/A');
-
-        if (obj.order.shipping_data) {
-          console.log('\n📮 SHIPPING DATA (obj.order.shipping_data):');
-          console.log('- First Name:', obj.order.shipping_data.first_name || 'N/A');
-          console.log('- Last Name:', obj.order.shipping_data.last_name || 'N/A');
-          console.log('- Email:', obj.order.shipping_data.email || 'N/A');
-          console.log('- Phone:', obj.order.shipping_data.phone_number || 'N/A');
-          console.log('- Country:', obj.order.shipping_data.country || 'N/A');
-        }
-
-        if (obj.order.merchant) {
-          console.log('\n🏪 MERCHANT INFO (obj.order.merchant):');
-          console.log('- Merchant ID:', obj.order.merchant.id || 'N/A');
-          console.log('- Company Name:', obj.order.merchant.company_name || 'N/A');
-          console.log('- Country:', obj.order.merchant.country || 'N/A');
-        }
-      }
-
-      if (obj.source_data) {
-        console.log('\n💳 CARD/SOURCE DATA (obj.source_data):');
-        console.log('- Type:', obj.source_data.type || 'N/A');
-        console.log('- Sub Type:', obj.source_data.sub_type || 'N/A');
-        console.log('- PAN (Last 4):', obj.source_data.pan || 'N/A');
-      }
-
-      if (obj.payment_key_claims) {
-        console.log('\n🔑 PAYMENT KEY CLAIMS (obj.payment_key_claims):');
-        console.log('- User ID:', obj.payment_key_claims.user_id || 'N/A');
-        console.log('- Amount (cents):', obj.payment_key_claims.amount_cents || 'N/A');
-        console.log('- Currency:', obj.payment_key_claims.currency || 'N/A');
-        console.log('- Order ID:', obj.payment_key_claims.order_id || 'N/A');
-        console.log('- Integration ID:', obj.payment_key_claims.integration_id || 'N/A');
-        console.log('- Next Payment Intention:', obj.payment_key_claims.next_payment_intention || 'N/A');
-      }
-
-      if (obj.data) {
-        console.log('\n📊 TRANSACTION DATA (obj.data):');
-        console.log('- Gateway Integration PK:', obj.data.gateway_integration_pk || 'N/A');
-        console.log('- Klass:', obj.data.klass || 'N/A');
-        console.log('- MIGS Result:', obj.data.migs_result || 'N/A');
-        console.log('- Transaction Response Code:', obj.data.txn_response_code || 'N/A');
-        console.log('- Message:', obj.data.message || 'N/A');
-        console.log('- Card Type:', obj.data.card_type || 'N/A');
-        console.log('- Card Number:', obj.data.card_num || 'N/A');
-        console.log('- Receipt No:', obj.data.receipt_no || 'N/A');
-        console.log('- Authorize ID:', obj.data.authorize_id || 'N/A');
-      }
-    }
-  }
-
-  console.log('\n========================================\n');
-
-  // Send success response to Paymob
-  res.status(200).json({
-    status: 'success',
-    message: 'Transaction callback received and logged successfully',
-    timestamp: new Date().toISOString(),
-  });
 });

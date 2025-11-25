@@ -4,7 +4,7 @@ import path from 'path';
 
 export default defineConfig(({ mode }) => {
   const env = loadEnv(mode, process.cwd(), '');
-  const apiBaseUrl = env.VITE_API_BASE_URL;
+  const apiBaseUrl = env.VITE_API_BASE_URL ||  "https://lashell-precaudal-glinda.ngrok-free.dev";
 
   if (!apiBaseUrl) {
     throw new Error('VITE_API_BASE_URL is not defined. Please set it in your environment.');
